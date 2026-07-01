@@ -1,0 +1,235 @@
+I read both documents and mapped them against your team chat with Shaham and Roy. Here is a consolidated direction in English.
+
+---
+
+## What the Documents Say
+
+### Your proposal (`Proposal_Toxic_Comment.docx`)
+
+**Title:** *Words That Harm: Architectures and Fairness in Toxic-Comment Detection*
+
+**Core idea:**
+- Multi-label toxic comment classification (toxic, obscene, threat, insult, identity-hate)
+- Compare **4 approaches**, mostly **without training from scratch**:
+  1. TF-IDF + linear SVM (classical baseline)
+  2. DistilBERT (generic off-the-shelf)
+  3. `unitary/toxic-bert` (specialized, in-domain)
+  4. `GroNLP/hateBERT` (specialized, Reddit-trained → cross-domain)
+- **Depth axis:** fairness — per-identity false positive rate (neutral sentences mentioning a group flagged as toxic)
+- **Dataset:** Jigsaw (`google/jigsaw_toxicity_pred`)
+- You already noted the weak version: “fine-tune BERT, report F1” — Roy/Shaham explicitly want to avoid that
+
+### Course guidelines (`046211 - Project-Guidelines.pdf`)
+
+| Component | Weight | Requirement |
+|-----------|--------|-------------|
+| Presentation | 50% | ≤6 min video, ~10 slides, Q&A |
+| Report | 25% | ≤8 pages: intro, method, experiments, conclusion + references |
+| GitHub | 25% | Clean repo, commented code, **very detailed README** |
+| Ethics | 5 pts | Mandatory template in report |
+
+They care about **stakeholders, implications, and ethical reflection** — your toxicity + fairness angle fits well.
+
+---
+
+## What Roy Is Actually Asking For
+
+Your WhatsApp notes refine the proposal in important ways:
+
+| Omar / initial idea | Roy’s pushback / preference |
+|---------------------|---------------------------|
+| Compare models trained on different websites | Less excited — hard to interpret, confounded by data |
+| Per-identity “discrimination scores” as main story | OK as **one axis**, but not the whole project |
+| Cross-site data (Reddit vs Wikipedia vs Instagram) | Useful as **distribution shift / robustness**, not “train separate models per site” |
+| Don’t have to train | Correct — but **not** “download model → print accuracy” |
+| — | **Encoder-only vs decoder-only** classification |
+| — | **Dedicated classifier vs LM prompting** (“This comment is ___”) |
+| — | **Fair comparison** — match capacity (e.g. ~same params or FLOPs) |
+| — | **Interventions** — e.g. mask “Muslim” during training and measure effect |
+| — | **Full model vs distilled model** — explicitly encouraged |
+| — | Plan the **final document now**: which experiments, which figures, **what claim you expect to support** |
+
+Roy’s phrase “להתעלל במודל” = **stress-test / audit the model**, not ship a product classifier.
+
+---
+
+## Recommended Refined Direction
+
+Keep **toxic comment detection** as the domain, but reframe the research question:
+
+> **How do architecture class (encoder vs decoder), training objective (classifier vs generative LM), specialization (generic vs toxicity-trained), and compression (distillation) affect accuracy, calibration, robustness to perturbations, and identity-related false positives — under controlled, fair comparisons?**
+
+That satisfies:
+- Shaham: multiple models, data slices, perturbations, analysis-heavy
+- Roy: architecture comparison, fair baselines, interventions, distillation, non-trivial conclusions
+- Guidelines: ethics, stakeholders, experiments, report structure
+
+---
+
+## Concrete Experiment Matrix (plan this upfront)
+
+### A. Models (fair comparison groups)
+
+**Group 1 — Encoder family (~matched size where possible)**
+
+| Model | Role |
+|-------|------|
+| DistilBERT + classification head | Generic encoder classifier |
+| `toxic-bert` | In-domain specialized encoder |
+| `hateBERT` | Cross-domain specialized encoder |
+| TF-IDF + linear SVM | Non-neural floor |
+
+**Group 2 — Decoder / generative (same task, different mechanism)**
+
+| Model | Prompt pattern |
+|-------|----------------|
+| DistilGPT-2 or small GPT-2 | Zero-shot: *“Is the following comment toxic? Answer:”* |
+| Same, few-shot | 3–5 labeled examples in prompt |
+| Fill-in-blank (Roy’s example) | *“Comment: {text}\nThis comment is ___.”* → score `toxic` vs `ok` token likelihood |
+
+**Group 3 — Distillation (Roy highlighted)**
+
+| Comparison | Question |
+|------------|----------|
+| `toxic-bert` vs DistilBERT distilled on same labels | How much bias/robustness is lost? |
+| Teacher (BERT-base) vs student (DistilBERT) | Accuracy–fairness–latency tradeoff |
+
+**Fair comparison rules (state these in the report — Roy will ask):**
+- Report **parameter count** and optionally **inference time** for every model
+- Compare within tiers: small↔small, base↔base
+- Same tokenizer/preprocessing pipeline per family
+- Same threshold selection protocol (e.g. tune on val set once, apply everywhere)
+
+---
+
+### B. Data slices (use Jigsaw + light external probe)
+
+Don’t train separate site-specific models. Instead:
+
+| Slice | Purpose |
+|-------|---------|
+| Jigsaw full test set | Main benchmark |
+| Jigsaw `identity` subset / identity-annotated rows | Fairness FPR per group |
+| Wikipedia-heavy vs discussion-heavy subsets (if metadata allows) | Mild domain shift |
+| Small hand-collected or public **Reddit** sample (same labeling protocol) | Out-of-distribution probe only |
+| Skip Instagram unless you have a **small, labeled, ethical** sample — scraping IG is messy and hard to defend ethically |
+
+Omar’s cross-site idea works best as: **“does specialization on Jigsaw/Wikipedia comments break on Reddit-style text?”** — not training four site-specific models.
+
+---
+
+### C. Perturbations / “torture the model”
+
+These give you depth without huge training:
+
+| Perturbation | What you learn |
+|--------------|----------------|
+| Identity mention only (*“I am Muslim”* vs *“I am Christian”*) | Group FPR asymmetry |
+| Neutral + identity term | Core fairness metric |
+| Typos / leetspeak / punctuation noise | Robustness |
+| Adversarial inserts (*“you are great”* → *“you are great idiot”*) | Sensitivity to local context |
+| Template swap (*“I hate {group}”* vs *“I love {group}”*) | Whether model tracks syntax vs keywords |
+| Masked training intervention (Roy’s example) | Train/fine-tune **one** small model with identity terms masked → measure Δ FPR |
+
+You do **not** need to train everything — but **one controlled intervention** (e.g. masked-term fine-tune on DistilBERT) shows you understand causality, not just benchmarking.
+
+---
+
+### D. Metrics (go beyond accuracy)
+
+| Metric | Why |
+|--------|-----|
+| Per-label F1 / PR-AUC | Class imbalance |
+| Per-identity FPR on neutral templates | Fairness |
+| Calibration (ECE or reliability diagram) | Moderation systems need trustworthy scores |
+| Consistency under perturbation | Robustness |
+| Agreement between architectures | Do encoder and decoder “see” toxicity the same way? |
+
+---
+
+## Figures to Plan Now (for report + slides)
+
+1. **Architecture diagram** — encoder head vs decoder prompt vs distilled pipeline  
+2. **Bar chart** — F1 by model **with param count annotated** on each bar  
+3. **Heatmap** — per-identity FPR across models  
+4. **Perturbation curve** — performance vs noise level  
+5. **Calibration plot** — predicted prob vs actual toxic rate  
+6. **Case study table** — 5–10 comments where models disagree (qualitative gold)  
+7. **Intervention figure** — FPR before/after masking “Muslim” (or top-k identity terms) during fine-tune  
+
+---
+
+## Conclusions You Can Aim For (non-trivial)
+
+Avoid: *“Bigger model = better.”*
+
+Better example claims (hypotheses to test):
+
+1. **Specialization** (`toxic-bert`) improves in-domain F1 but **increases** identity-term FPR vs generic DistilBERT.  
+2. **Decoder prompting** matches small encoders on average F1 but is **less calibrated** and more sensitive to prompt wording.  
+3. **Distillation** preserves most accuracy but **amplifies** false positives on specific identity groups.  
+4. **Masking identity terms during training** reduces FPR for those terms but **hurts** recall on real identity-directed hate.  
+5. **Cross-domain** (`hateBERT` on Jigsaw) wins on threat/insult but fails on subtle toxicity in Wikipedia-style comments.
+
+Pick 2–3 hypotheses upfront and design every experiment around them.
+
+---
+
+## How to Update the Proposal
+
+Change the one-liner from:
+
+> “Compare 4 models + fairness FPR”
+
+To something like:
+
+> “Controlled audit of toxic-comment detectors: encoder classifiers vs decoder-based prompting vs distilled models, with matched capacity, perturbation stress tests, and identity-bias analysis — including one training intervention to isolate data-driven bias.”
+
+Add a **“Expected outcomes”** section (Roy asked for this):
+
+- We expect specialized encoders to trade fairness for accuracy.  
+- We expect generative classifiers to be prompt-sensitive.  
+- We expect distillation to compress accuracy but not bias proportionally.  
+
+---
+
+## Repo / Deliverable Structure (25% of grade)
+
+```
+toxic-comment-audit/
+├── README.md          # setup, how to reproduce every figure
+├── configs/           # model names, prompts, thresholds
+├── src/
+│   ├── data.py        # Jigsaw loading, slices
+│   ├── models.py      # encoder / decoder wrappers
+│   ├── evaluate.py    # metrics, FPR, calibration
+│   ├── perturb.py     # noise + template tests
+│   └── plots.py
+├── notebooks/         # EDA + figure generation for report
+├── experiments/       # saved result JSON per run
+└── report/            # Overleaf link or PDF
+```
+
+---
+
+## Bottom Line
+
+| Keep from proposal | Adjust per Roy |
+|--------------------|----------------|
+| Jigsaw dataset | Add slices, not multi-site training |
+| toxic-bert / hateBERT / SVM | Add decoder prompting + distillation pair |
+| Identity FPR fairness | One of several axes, not the only story |
+| Zero-shot / minimal training | Add **one** intervention experiment (masked terms) |
+| Stakeholder ethics | Strong fit for graded ethics section |
+
+**Toxic comment detector is a good choice** — just pivot from “which model wins?” to **“what mechanisms drive mistakes, bias, and robustness under fair comparison?”**
+
+If you want, I can next:
+1. Draft a **revised 1-page proposal** in English ready to submit, or  
+2. Create a **project skill** in `.cursor/skills/` encoding this experiment plan and repo structure.
+
+
+
+=============
+
+
