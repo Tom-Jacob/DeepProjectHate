@@ -1,7 +1,20 @@
 """Project paths and constants."""
 from pathlib import Path
+from typing import Optional
 
 SEED = 211
+
+# Toggle in notebooks for faster iteration (20/20 vs 50/50 balanced eval).
+QUICK_MODE = False
+EVAL_N_EACH_FULL = 50
+EVAL_N_EACH_QUICK = 20
+
+
+def eval_n_each(quick_mode: Optional[bool] = None) -> int:
+    if quick_mode is None:
+        quick_mode = QUICK_MODE
+    return EVAL_N_EACH_QUICK if quick_mode else EVAL_N_EACH_FULL
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -25,3 +38,9 @@ TOXIC_LABELS = [
 
 MODEL_ID = "unitary/toxic-bert"
 LOCAL_MODEL_DIR = MODELS_DIR / "toxic-bert"
+
+DISTILGPT2_MODEL_ID = "distilgpt2"
+LOCAL_DISTILGPT2_DIR = MODELS_DIR / "distilgpt2"
+
+DECODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "decoder_smoke_scores.parquet"
+ENCODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "encoder_smoke_scores.parquet"

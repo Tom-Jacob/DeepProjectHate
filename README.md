@@ -6,7 +6,7 @@ EE046211 / ECE046211 Deep Learning course project. Phase 1: Jigsaw 2018 data exp
 
 ```bash
 conda activate deep_learn
-cd Project
+cd Project/DeepProjectHate
 pip install -r requirements-project.txt
 ```
 
@@ -21,7 +21,7 @@ If missing, install from https://pytorch.org/get-started/locally/
 ## Project layout
 
 ```
-Project/
+DeepProjectHate/
 ├── data/raw/jigsaw/     # Kaggle CSVs (not in git)
 ├── data/processed/      # splits (Phase 2)
 ├── models/toxic-bert/   # optional local model copy (not in git)
@@ -46,7 +46,7 @@ The Hugging Face dataset `google/jigsaw_toxicity_pred` requires local Kaggle fil
 ### Download into this project
 
 ```bash
-cd Project
+cd Project/DeepProjectHate
 kaggle competitions download -c jigsaw-toxic-comment-classification-challenge -p data/raw/jigsaw
 ```
 
@@ -76,6 +76,14 @@ This caches `unitary/toxic-bert` from Hugging Face and saves a copy to `models/t
 
 Model: https://huggingface.co/unitary/toxic-bert (Apache 2.0)
 
+## Download DistilGPT-2 weights
+
+```bash
+python scripts/download_distilgpt2.py
+```
+
+Saves to `models/distilgpt2/`. Model: https://huggingface.co/distilgpt2
+
 ## Run the EDA notebook
 
 ```bash
@@ -83,6 +91,14 @@ jupyter notebook notebooks/01_eda_and_smoke_tests.ipynb
 ```
 
 Run all cells top-to-bottom after data and model are downloaded.
+
+## Run the decoder smoke notebook
+
+```bash
+jupyter notebook notebooks/02_decoder_smoke_distilgpt2.ipynb
+```
+
+Set `QUICK_MODE = True` in the setup cell for faster iteration (`20+20` eval sample).
 
 ## Licenses
 
