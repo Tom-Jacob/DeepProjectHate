@@ -35,3 +35,8 @@ def get_balanced_sample(
         ]
     )
     return sample.sample(frac=1, random_state=seed).reset_index(drop=True)
+
+
+def show_random_rows(df: pd.DataFrame, n: int = 5, seed: int = SEED) -> pd.DataFrame:
+    """Sample random rows for display (reproducible with seed)."""
+    return df.sample(min(n, len(df)), random_state=seed)
