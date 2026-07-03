@@ -5,6 +5,7 @@ import pandas as pd
 
 from paths import (
     RAW_JIGSAW_DIR,
+    SEED,
     TEST_CSV,
     TEST_LABELS_CSV,
     TOXIC_LABELS,
@@ -106,9 +107,12 @@ def label_cooccurrence(df: pd.DataFrame, mask_diagonal: bool = False) -> pd.Data
     return pd.DataFrame(arr, index=cooc.index, columns=cooc.columns)
 
 
-def sample_examples(df: pd.DataFrame, label: str, n: int = 3, toxic: bool = True) -> pd.DataFrame:
+def sample_examples(
+    df: pd.DataFrame, label: str, n: int = 3, toxic: bool = True, seed: int = SEED
+) -> pd.DataFrame:
     subset = df[df[label] == (1 if toxic else 0)]
-    return subset[["comment_text"] + TOXIC_LABELS].head(n)
+    k = min(n, len(subset))
+    return subset[["comment_text"] + TOXIC_LABELS].sample(k, random_state=seed)
 
 
 def get_project_root() -> Path:

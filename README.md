@@ -98,7 +98,7 @@ Run all cells top-to-bottom after data and model are downloaded.
 jupyter notebook notebooks/02_decoder_smoke_distilgpt2.ipynb
 ```
 
-Set `QUICK_MODE = True` in the setup cell for faster iteration (`20+20` eval sample).
+`QUICK_MODE` defaults to `True` (`20+20` eval sample). Set `QUICK_MODE = False` in the notebook setup cell for the full `50+50` run.
 
 ## Licenses
 

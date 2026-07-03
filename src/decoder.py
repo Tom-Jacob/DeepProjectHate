@@ -8,6 +8,19 @@ D1 scoring paths (per label):
 
 D2 scoring paths (per label): same four methods with positive/negative continuations
 after "Comment: ... This comment is ___". Also supports argmax over label words.
+
+Column naming convention
+------------------------
+Wide outputs use ``d1_{field}_{label}`` / ``d2_{field}_{label}`` (6 labels each).
+
+Per label, 10 stored fields:
+  - logprob_full: ``p_yes`` / ``p_positive``, ``pred_logprob``  (pred = int(p >= 0.5))
+  - first_token (C): ``p_yes_first``, ``pred_logprob_first``
+  - constrained (D): ``p_yes_constrained``, ``pred_constrained``
+  - generate_parse (B): ``pred_generate``, ``parse_abstain``, ``raw_completion``,
+    ``scoring_mismatch``
+
+``predict_multilabel_d1`` → 1 + 6×10 = 61 columns. Use ``d1_display_df`` for notebook views.
 """
 from __future__ import annotations
 
@@ -22,13 +35,14 @@ import torch.nn.functional as F
 from paths import TOXIC_LABELS
 
 # Positive vs negative continuations after "This comment is"
+# Use symmetric "not {label}" phrasing (parallel to D1 yes/no).
 D2_LABEL_CONTINUATIONS: Dict[str, Tuple[str, str]] = {
-    "toxic": (" toxic", " not"),
-    "severe_toxic": (" severely toxic", " harmless"),
-    "obscene": (" obscene", " clean"),
-    "threat": (" threatening", " harmless"),
-    "insult": (" insulting", " respectful"),
-    "identity_hate": (" hateful", " respectful"),
+    "toxic": (" toxic", " not toxic"),
+    "severe_toxic": (" severely toxic", " not severely toxic"),
+    "obscene": (" obscene", " not obscene"),
+    "threat": (" threatening", " not threatening"),
+    "insult": (" insulting", " not insulting"),
+    "identity_hate": (" hateful", " not hateful"),
 }
 
 
@@ -412,6 +426,151 @@ def _fillblank_row_columns(label: str, scored: FillBlankScore) -> dict:
     }
 
 
+# method_id -> column templates (use .format(label))
+D1_METHODS: Dict[str, Dict[str, str]] = {
+    "logprob": {"prob": "d1_p_yes_{}", "pred": "d1_pred_logprob_{}"},
+    "first": {"prob": "d1_p_yes_first_{}", "pred": "d1_pred_logprob_first_{}"},
+    "constrained": {"prob": "d1_p_yes_constrained_{}", "pred": "d1_pred_constrained_{}"},
+    "generate": {
+        "pred": "d1_pred_generate_{}",
+        "abstain": "d1_parse_abstain_{}",
+        "raw": "d1_raw_completion_{}",
+        "mismatch": "d1_scoring_mismatch_{}",
+    },
+}
+
+D2_METHODS: Dict[str, Dict[str, str]] = {
+    "logprob": {"prob": "d2_p_positive_{}", "pred": "d2_pred_logprob_{}"},
+    "first": {"prob": "d2_p_positive_first_{}", "pred": "d2_pred_logprob_first_{}"},
+    "constrained": {"prob": "d2_p_positive_constrained_{}", "pred": "d2_pred_constrained_{}"},
+    "generate": {
+        "pred": "d2_pred_generate_{}",
+        "abstain": "d2_parse_abstain_{}",
+        "raw": "d2_raw_completion_{}",
+        "mismatch": "d2_scoring_mismatch_{}",
+    },
+}
+
+ALL_SCORING_METHODS: Tuple[str, ...] = ("logprob", "first", "constrained", "generate")
+
+
+def _resolve_display_methods(methods: Sequence[str]) -> Tuple[str, ...]:
+    if "all_methods" in methods:
+        return ALL_SCORING_METHODS
+    return tuple(methods)
+
+
+def _columns_for_methods(
+    method_specs: Dict[str, Dict[str, str]],
+    labels: Sequence[str],
+    methods: Sequence[str],
+    include_probs: bool = False,
+    include_diagnostics: bool = False,
+) -> List[str]:
+    cols: List[str] = []
+    for method in _resolve_display_methods(methods):
+        spec = method_specs[method]
+        if include_probs and "prob" in spec:
+            cols.extend(spec["prob"].format(label) for label in labels)
+        cols.extend(spec["pred"].format(label) for label in labels)
+        if include_diagnostics and method == "generate":
+            cols.extend(spec["abstain"].format(label) for label in labels)
+            if "raw" in spec:
+                cols.extend(spec["raw"].format(label) for label in labels)
+    return cols
+
+
+def _select_existing(df: pd.DataFrame, cols: Sequence[str]) -> pd.DataFrame:
+    return df[[c for c in cols if c in df.columns]]
+
+
+def d1_pred_columns(labels: Optional[Sequence[str]] = None, method: str = "logprob") -> List[str]:
+    """Primary binary pred columns for one scoring method (default: logprob_full)."""
+    labels = list(labels or TOXIC_LABELS)
+    return [D1_METHODS[method]["pred"].format(label) for label in labels]
+
+
+def d2_pred_columns(labels: Optional[Sequence[str]] = None, method: str = "logprob") -> List[str]:
+    labels = list(labels or TOXIC_LABELS)
+    return [D2_METHODS[method]["pred"].format(label) for label in labels]
+
+
+def d1_display_df(
+    df: pd.DataFrame,
+    labels: Optional[Sequence[str]] = None,
+    methods: Sequence[str] = ("logprob",),
+    include_probs: bool = False,
+    include_comment: bool = True,
+    include_diagnostics: bool = False,
+) -> pd.DataFrame:
+    """Curated wide view of D1 outputs (default: primary preds only, ~7 cols)."""
+    labels = list(labels or TOXIC_LABELS)
+    cols: List[str] = []
+    if include_comment and "comment_text" in df.columns:
+        cols.append("comment_text")
+    cols.extend(
+        _columns_for_methods(D1_METHODS, labels, methods, include_probs, include_diagnostics)
+    )
+    return _select_existing(df, cols)
+
+
+def d2_display_df(
+    df: pd.DataFrame,
+    labels: Optional[Sequence[str]] = None,
+    methods: Sequence[str] = ("logprob",),
+    include_probs: bool = False,
+    include_comment: bool = True,
+    include_argmax: bool = False,
+    include_diagnostics: bool = False,
+) -> pd.DataFrame:
+    """Curated wide view of D2 outputs."""
+    labels = list(labels or TOXIC_LABELS)
+    cols: List[str] = []
+    if include_comment and "comment_text" in df.columns:
+        cols.append("comment_text")
+    cols.extend(
+        _columns_for_methods(D2_METHODS, labels, methods, include_probs, include_diagnostics)
+    )
+    if include_argmax and "d2_argmax_label" in df.columns:
+        cols.append("d2_argmax_label")
+    return _select_existing(df, cols)
+
+
+def d1_label_detail(
+    df: pd.DataFrame,
+    label: str,
+    include_probs: bool = True,
+    include_diagnostics: bool = True,
+) -> pd.DataFrame:
+    """Single-label slice with all four D1 methods (smoke / debug)."""
+    return d1_display_df(
+        df,
+        labels=[label],
+        methods=ALL_SCORING_METHODS,
+        include_probs=include_probs,
+        include_diagnostics=include_diagnostics,
+    )
+
+
+def d2_label_detail(
+    df: pd.DataFrame,
+    label: str,
+    include_probs: bool = True,
+    include_diagnostics: bool = True,
+    include_argmax: bool = True,
+) -> pd.DataFrame:
+    """Single-label slice with all four D2 methods plus optional argmax."""
+    return d2_display_df(
+        df,
+        labels=[label],
+        methods=ALL_SCORING_METHODS,
+        include_probs=include_probs,
+        include_diagnostics=include_diagnostics,
+        include_argmax=include_argmax,
+    )
+
+
+
 def predict_multilabel_d1(
     model: torch.nn.Module,
     tokenizer,
@@ -513,6 +672,36 @@ def _method_summary(
                 }
             )
     return pd.DataFrame(rows)
+
+
+def method_mean_by_method(summary_df: pd.DataFrame) -> pd.DataFrame:
+    """Average agreement (and abstain) across labels for each scoring method."""
+    return (
+        summary_df.groupby("method", as_index=False)
+        .agg(mean_agreement=("agreement", "mean"), mean_abstain=("abstain_rate", "mean"))
+        .sort_values("mean_agreement", ascending=False)
+    )
+
+
+def format_method_summary_text(
+    summary_df: pd.DataFrame,
+    n_examples: int,
+    prompt_name: str = "Decoder",
+) -> str:
+    """One-sentence summary of mean agreement per scoring method."""
+    means = method_mean_by_method(summary_df)
+    n_labels = summary_df["label"].nunique()
+    parts = []
+    for _, row in means.iterrows():
+        chunk = f"{row['method']}: {row['mean_agreement']:.0%} mean agreement"
+        if row["method"] == "generate_parse" and row["mean_abstain"] > 0:
+            chunk += f" ({row['mean_abstain']:.0%} abstain)"
+        parts.append(chunk)
+    joined = "; ".join(parts)
+    return (
+        f"{prompt_name} on {n_examples} examples x {n_labels} labels — "
+        f"{joined}."
+    )
 
 
 def d1_method_summary(compare: pd.DataFrame, labels: Optional[Sequence[str]] = None) -> pd.DataFrame:
