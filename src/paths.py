@@ -44,3 +44,13 @@ LOCAL_DISTILGPT2_DIR = MODELS_DIR / "distilgpt2"
 
 DECODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "decoder_smoke_scores.parquet"
 ENCODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "encoder_smoke_scores.parquet"
+JOINED_SCORES_PATH = PROCESSED_DIR / "joined_smoke_scores.parquet"
+SPLIT_INDICES_PATH = PROCESSED_DIR / "split_indices.parquet"
+BENCHMARK_RESULTS_PATH = PROCESSED_DIR / "benchmark_results.json"
+
+# Train/val fraction from train.csv (remainder is val). Test = labeled Jigsaw test split.
+TRAIN_FRAC = 0.85
+VAL_FRAC = 0.15
+
+# Cap per split when --quick is passed to run_formal_eval.py
+FORMAL_EVAL_QUICK_N = 500

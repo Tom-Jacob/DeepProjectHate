@@ -23,9 +23,10 @@ If missing, install from https://pytorch.org/get-started/locally/
 ```
 DeepProjectHate/
 ├── data/raw/jigsaw/     # Kaggle CSVs (not in git)
-├── data/processed/      # splits (Phase 2)
+├── data/processed/      # splits, parquets, benchmark JSON
 ├── models/toxic-bert/   # optional local model copy (not in git)
 ├── notebooks/           # EDA and experiments
+├── scripts/             # CLI helpers (splits, eval, join)
 ├── src/                 # shared loaders and helpers
 └── requirements-project.txt
 ```
@@ -99,6 +100,45 @@ jupyter notebook notebooks/02_decoder_smoke_distilgpt2.ipynb
 ```
 
 `QUICK_MODE` defaults to `True` (`20+20` eval sample). Set `QUICK_MODE = False` in the notebook setup cell for the full `50+50` run.
+
+## Fast-win workflow (formal eval + encoder/decoder comparison)
+
+No changes to notebooks 01/02 required. After data and models are downloaded:
+
+### 1. Create train/val/test index file
+
+```bash
+python scripts/make_splits.py
+```
+
+Writes `data/processed/split_indices.parquet` (85% train / 15% val from `train.csv`, stratified; test = labeled Jigsaw test rows).
+
+### 2. Formal toxic-bert evaluation
+
+```bash
+python scripts/run_formal_eval.py --quick
+```
+
+Scores up to 500 comments per val/test split. Full run: omit `--quick`. Results → `data/processed/benchmark_results.json`.
+
+Or use `notebooks/03_formal_eval.ipynb`.
+
+### 3. Encoder vs decoder comparison
+
+Run notebook 02 through §13 first (saves `decoder_smoke_scores.parquet`). Then:
+
+```bash
+python scripts/score_encoder_smoke.py --from-decoder
+python scripts/join_scores.py
+```
+
+Or one step if encoder parquet is missing:
+
+```bash
+python scripts/join_scores.py --score-encoder
+```
+
+Joined table → `data/processed/joined_smoke_scores.parquet`. Charts and metrics → `notebooks/04_encoder_decoder_comparison.ipynb`.
 
 ## Licenses
 
