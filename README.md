@@ -1,146 +1,89 @@
-# Words That Harm — Toxic Comment Audit
+# Words That Harm — Architectures and Fairness in Toxic-Comment Detection
 
-EE046211 / ECE046211 Deep Learning course project. Phase 1: Jigsaw 2018 data exploration and `unitary/toxic-bert` smoke tests.
+Technion **EE046211 Deep Learning** course project. Authors: **Omer Ramon, Tom Jacob**.
+
+A controlled **audit** of toxic-comment detectors on the Jigsaw 2018 dataset. Rather
+than chasing accuracy, we compare three architectures **on the same data** and
+stress-test each for bias, robustness, and failure mechanism.
+
+| Architecture | Model | Role |
+|---|---|---|
+| Encoder classifier | `unitary/toxic-bert` (BERT, 109M) | in-domain specialist |
+| Non-neural | TF-IDF + linear SVM (we train it) | fair "floor" |
+| Decoder (prompting) | DistilGPT-2 (82M) | generative LM as zero-shot classifier |
+
+Every model is reduced to a single `P(toxic)` so all evaluations are
+architecture-agnostic. We measure accuracy, latency, **per-identity fairness**,
+**robustness to obfuscation**, and run a **masking intervention** to explain *why*
+models over-flag identity mentions.
+
+## Headline findings
+- **Toxicity detection is largely lexical** — the linear SVM matches toxic-bert's F1
+  and beats its PR-AUC at ~1700× lower latency.
+- **The encoder's real edge is robustness**, not accuracy (leetspeak evasion 0.28 vs
+  0.71 for the SVM).
+- **Discriminative heads ≫ generative prompting at small scale** — DistilGPT-2
+  zero-shot prompting is near chance.
+- **Identity bias is data-driven** — present even in the linear model; masking the
+  identity token drops the false-positive rate to zero (a lexical shortcut).
+
+## Documentation map
+| Document | What it is |
+|---|---|
+| [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) | Architecture, the `predict_toxic_proba` contract, and how to run everything **programmatically** and via CLI |
+| [`docs/PROGRESS.md`](docs/PROGRESS.md) | Build log: environment gotchas, per-phase results, command reference |
+| [`report/report_draft.md`](report/report_draft.md) | The ≤8-page report draft (submission mockup) with final numbers, conclusions, references, ethics template |
+| [`CLAUDE.md`](CLAUDE.md) | Project context (goal, hypotheses, verified env) |
+| `report/figures/` | All generated figures for the report |
 
 ## Setup
 
 ```bash
 conda activate deep_learn
-cd Project/DeepProjectHate
 pip install -r requirements-project.txt
 ```
 
-Verify PyTorch:
+Two machine-specific notes (see `docs/PROGRESS.md` for details):
+- **CPU-only on some machines:** an RTX 50-series (Blackwell) GPU can't run
+  `torch 2.3/cu121`; `src/device.py` auto-falls-back to CPU. GPU training runs on Colab.
+- **Windows + non-ASCII path:** set `PYTHONIOENCODING=utf-8` before running scripts.
+
+### Download data & models (one-time)
+```bash
+python scripts/download_jigsaw.py        # Jigsaw CSVs (Kaggle or HF-mirror fallback)
+python scripts/download_toxic_bert.py    # unitary/toxic-bert weights
+python scripts/make_splits.py            # train/val/test split indices
+```
+The DistilGPT-2 and TF-IDF+SVM models are obtained/trained automatically on first use.
+
+## Run the audit
 
 ```bash
-python -c "import torch; print(torch.__version__)"
+python scripts/run_model_comparison.py --quick        # accuracy / latency / params
+python scripts/run_fairness.py                        # per-identity FPR
+python scripts/run_robustness.py --quick              # perturbation evasion
+python scripts/run_masking.py                         # masking intervention (why)
+python scripts/run_agreement.py --n 150               # encoder vs decoder
+# figures:
+python scripts/plot_model_comparison.py --split test
+python scripts/plot_fairness_robustness.py
 ```
+Add the decoder to any comparison: `--models toxic-bert tfidf-svm distilgpt2-d1`.
+Drop `--quick` (or raise `--eval-n`) for full-size runs. See the developer guide for
+the Python API.
 
-If missing, install from https://pytorch.org/get-started/locally/
-
-## Project layout
-
+## Repository layout
 ```
-DeepProjectHate/
-├── data/raw/jigsaw/     # Kaggle CSVs (not in git)
-├── data/processed/      # splits, parquets, benchmark JSON
-├── models/toxic-bert/   # optional local model copy (not in git)
-├── notebooks/           # EDA and experiments
-├── scripts/             # CLI helpers (splits, eval, join)
-├── src/                 # shared loaders and helpers
-└── requirements-project.txt
+src/            model_registry (hub), encoder, decoder, baselines, fairness,
+                perturb, intervention, evaluate, plots, data, splits, device, paths
+scripts/        download_*, make_splits, run_* (comparison/fairness/robustness/
+                masking/agreement), plot_*
+notebooks/      01 EDA · 02 decoder · 03 formal eval · 04 encoder/decoder
+docs/           DEVELOPER_GUIDE.md, PROGRESS.md
+report/         report_draft.md, figures/
+data/           raw/ (gitignored) + processed/ (gitignored results JSON)
 ```
-
-## Download Jigsaw 2018 data (Kaggle)
-
-The Hugging Face dataset `google/jigsaw_toxicity_pred` requires local Kaggle files.
-
-### One-time Kaggle API setup
-
-1. Create an account at https://www.kaggle.com
-2. Join the competition: https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge
-3. Go to Account → Settings → **Create New API Token** (downloads `kaggle.json`)
-4. Place the file at:
-   - Windows: `C:\Users\<you>\.kaggle\kaggle.json`
-5. Install CLI: `pip install kaggle`
-
-### Download into this project
-
-```bash
-cd Project/DeepProjectHate
-kaggle competitions download -c jigsaw-toxic-comment-classification-challenge -p data/raw/jigsaw
-```
-
-If you get a zip file, extract it into `data/raw/jigsaw/`. Kaggle often nests CSVs inside inner zips (`train.csv.zip`, etc.) — extract those too until you have the three `.csv` files.
-
-| File | Description |
-|------|-------------|
-| `train.csv` | ~159k labeled Wikipedia talk comments |
-| `test.csv` | Test comment texts |
-| `test_labels.csv` | Labels for labeled test subset |
-
-Or use the helper script (uses Kaggle if configured, otherwise Hugging Face mirror):
-
-```bash
-python scripts/download_jigsaw.py
-```
-
-**No Kaggle account?** The script automatically falls back to [Heliosoph/Jigsaw-Toxic-Comments](https://huggingface.co/datasets/Heliosoph/Jigsaw-Toxic-Comments) on Hugging Face.
-
-## Download toxic-bert weights
-
-```bash
-python scripts/download_toxic_bert.py
-```
-
-This caches `unitary/toxic-bert` from Hugging Face and saves a copy to `models/toxic-bert/`.
-
-Model: https://huggingface.co/unitary/toxic-bert (Apache 2.0)
-
-## Download DistilGPT-2 weights
-
-```bash
-python scripts/download_distilgpt2.py
-```
-
-Saves to `models/distilgpt2/`. Model: https://huggingface.co/distilgpt2
-
-## Run the EDA notebook
-
-```bash
-jupyter notebook notebooks/01_eda_and_smoke_tests.ipynb
-```
-
-Run all cells top-to-bottom after data and model are downloaded.
-
-## Run the decoder smoke notebook
-
-```bash
-jupyter notebook notebooks/02_decoder_smoke_distilgpt2.ipynb
-```
-
-`QUICK_MODE` defaults to `True` (`20+20` eval sample). Set `QUICK_MODE = False` in the notebook setup cell for the full `50+50` run.
-
-## Fast-win workflow (formal eval + encoder/decoder comparison)
-
-No changes to notebooks 01/02 required. After data and models are downloaded:
-
-### 1. Create train/val/test index file
-
-```bash
-python scripts/make_splits.py
-```
-
-Writes `data/processed/split_indices.parquet` (85% train / 15% val from `train.csv`, stratified; test = labeled Jigsaw test rows).
-
-### 2. Formal toxic-bert evaluation
-
-```bash
-python scripts/run_formal_eval.py --quick
-```
-
-Scores up to 500 comments per val/test split. Full run: omit `--quick`. Results → `data/processed/benchmark_results.json`.
-
-Or use `notebooks/03_formal_eval.ipynb`.
-
-### 3. Encoder vs decoder comparison
-
-Run notebook 02 through §13 first (saves `decoder_smoke_scores.parquet`). Then:
-
-```bash
-python scripts/score_encoder_smoke.py --from-decoder
-python scripts/join_scores.py
-```
-
-Or one step if encoder parquet is missing:
-
-```bash
-python scripts/join_scores.py --score-encoder
-```
-
-Joined table → `data/processed/joined_smoke_scores.parquet`. Charts and metrics → `notebooks/04_encoder_decoder_comparison.ipynb`.
 
 ## Licenses
-
-- Jigsaw data: CC0 (comment text governed by Wikipedia CC-SA-3.0)
-- toxic-bert: Apache 2.0
+- Jigsaw data: CC0 (comment text under Wikipedia CC-SA-3.0)
+- `unitary/toxic-bert`: Apache 2.0 · DistilGPT-2: Apache 2.0

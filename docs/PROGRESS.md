@@ -4,6 +4,11 @@ A complete record of what has been built and how to run it, as of the current
 work session. Focus is the **encoder / toxic-bert** half of the project (Omer).
 For the living project context see [`../CLAUDE.md`](../CLAUDE.md).
 
+> Note: some tables below reflect the **initial** run (which included RoBERTa /
+> off-the-shelf DistilBERT). The roster was later trimmed to the fair 3-architecture
+> set (toxic-bert · TF-IDF+SVM · DistilGPT-2). For the **final** numbers and the
+> full write-up see [`../report/report_draft.md`](../report/report_draft.md).
+
 ---
 
 ## 1. What the project is

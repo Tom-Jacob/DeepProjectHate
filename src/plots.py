@@ -257,6 +257,49 @@ def plot_robustness_heatmap(results: dict, value: str = "evasion_rate", figsize=
     return fig, ax, mat
 
 
+def plot_masking_ablation(results: dict, figsize=(7, 5)):
+    """Inference-time masking: identity FPR with the term vs [MASK]ed, per model."""
+    rows = []
+    for model, r in results["inference_ablation"].items():
+        rows.append({"model": model, "condition": "with identity term", "fpr": r["fpr_with_identity"]})
+        rows.append({"model": model, "condition": "identity [MASK]ed", "fpr": r["fpr_masked"]})
+    df = pd.DataFrame(rows)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.barplot(data=df, x="model", y="fpr", hue="condition", ax=ax)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("identity false-positive rate")
+    ax.set_xlabel("")
+    ax.set_title("Masking the identity token collapses false positives\n(reliance on a lexical shortcut)")
+    ax.legend(title="")
+    fig.tight_layout()
+    return fig, ax
+
+
+def plot_masking_tradeoff(results: dict, figsize=(7, 5)):
+    """SVM training-time masking: fairness gain (FPR down) vs cost (recall down)."""
+    b = results["svm_training_masking"]
+    metrics = [
+        ("identity FPR", b["identity_fpr_before"], b["identity_fpr_after"]),
+        ("identity-hate recall", b["identity_hate_recall_before"], b["identity_hate_recall_after"]),
+        ("toxic recall", b["toxic_recall_before"], b["toxic_recall_after"]),
+    ]
+    rows = []
+    for name, before, after in metrics:
+        rows.append({"metric": name, "when": "before masking", "value": before})
+        rows.append({"metric": name, "when": "after masking", "value": after})
+    df = pd.DataFrame(rows)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.barplot(data=df, x="metric", y="value", hue="when", ax=ax)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("rate")
+    ax.set_xlabel("")
+    ax.set_title("SVM trained without identity terms:\nlower identity FPR, but recall on real identity-hate drops")
+    ax.legend(title="")
+    ax.tick_params(axis="x", rotation=15)
+    fig.tight_layout()
+    return fig, ax
+
+
 def save_figure(fig, path: Path, dpi: int = 120) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
