@@ -124,6 +124,80 @@ def metrics_from_joined(
     )
 
 
+def comparison_frame(results: dict, split: str = "test") -> pd.DataFrame:
+    """Flatten model_comparison.json into a tidy DataFrame for one split."""
+    rows = []
+    for key, block in results["models"].items():
+        m = block["splits"].get(split, {})
+        rows.append(
+            {
+                "model": key,
+                "family": block.get("family"),
+                "params": block.get("n_params"),
+                "f1": m.get("f1"),
+                "pr_auc": m.get("pr_auc"),
+                "roc_auc": m.get("roc_auc"),
+                "ms_per_comment": m.get("ms_per_comment"),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("f1", ascending=False).reset_index(drop=True)
+
+
+def plot_model_comparison_bars(results: dict, split: str = "test", figsize=(9, 5)):
+    """Grouped F1 / PR-AUC bars per model, annotated with parameter counts.
+
+    This is the fair-comparison figure: accuracy shown next to model capacity so
+    'bigger' is never conflated with 'better'.
+    """
+    df = comparison_frame(results, split=split)
+    long = df.melt(
+        id_vars=["model", "params"],
+        value_vars=["f1", "pr_auc"],
+        var_name="metric",
+        value_name="value",
+    )
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.barplot(data=long, x="model", y="value", hue="metric", ax=ax)
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("score")
+    ax.set_xlabel("")
+    ax.set_title(f"Binary toxic detection — {split} (bars) with parameter counts")
+    ax.legend(title="")
+
+    # Annotate each model with its parameter/capacity count under the axis.
+    def _fmt_params(p):
+        if p is None:
+            return "?"
+        return f"{p/1e6:.0f}M" if p >= 1e6 else f"{p/1e3:.0f}k"
+
+    labels = [f"{row.model}\n({_fmt_params(row.params)})" for row in df.itertuples()]
+    ax.set_xticklabels(labels)
+    fig.tight_layout()
+    return fig, ax, df
+
+
+def plot_accuracy_latency(results: dict, split: str = "test", figsize=(7, 5)):
+    """Scatter of F1 vs inference latency (log-x); the efficiency trade-off."""
+    df = comparison_frame(results, split=split)
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.scatter(df["ms_per_comment"], df["f1"], s=90, color="steelblue", zorder=3)
+    for row in df.itertuples():
+        ax.annotate(
+            row.model,
+            (row.ms_per_comment, row.f1),
+            textcoords="offset points",
+            xytext=(6, 4),
+            fontsize=9,
+        )
+    ax.set_xscale("log")
+    ax.set_xlabel("inference latency (ms/comment, log scale)")
+    ax.set_ylabel(f"{split} F1")
+    ax.set_title("Accuracy vs. inference cost")
+    ax.grid(True, which="both", alpha=0.3)
+    fig.tight_layout()
+    return fig, ax, df
+
+
 def save_figure(fig, path: Path, dpi: int = 120) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
