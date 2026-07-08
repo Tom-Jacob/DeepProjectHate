@@ -198,6 +198,65 @@ def plot_accuracy_latency(results: dict, split: str = "test", figsize=(7, 5)):
     return fig, ax, df
 
 
+def fairness_matrix(results: dict, value: str = "fpr") -> pd.DataFrame:
+    """Pivot fairness_results.json into a group x model matrix (grouped by category)."""
+    rows = []
+    for model, block in results["models"].items():
+        for rec in block["per_group"]:
+            rows.append(
+                {"model": model, "group": rec["group"], "category": rec["category"], value: rec[value]}
+            )
+    long = pd.DataFrame(rows)
+    order = (
+        long[["category", "group"]]
+        .drop_duplicates()
+        .sort_values(["category", "group"])["group"]
+        .tolist()
+    )
+    mat = long.pivot(index="group", columns="model", values=value).reindex(order)
+    return mat
+
+
+def plot_fairness_heatmap(results: dict, value: str = "fpr", figsize=(7, 9)):
+    """Heatmap of per-identity FPR (rows = identity groups, cols = models)."""
+    mat = fairness_matrix(results, value=value)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(
+        mat, annot=True, fmt=".2f", cmap="Reds", vmin=0, vmax=1,
+        cbar_kws={"label": value}, ax=ax, linewidths=0.5, linecolor="white",
+    )
+    ax.set_title("Per-identity false-positive rate (neutral sentences)")
+    ax.set_xlabel("")
+    ax.set_ylabel("identity group")
+    fig.tight_layout()
+    return fig, ax, mat
+
+
+def robustness_matrix(results: dict, value: str = "evasion_rate") -> pd.DataFrame:
+    """Pivot robustness_results.json into a perturbation x model matrix."""
+    rows = []
+    for model, block in results["models"].items():
+        for pname, m in block["perturbations"].items():
+            rows.append({"model": model, "perturbation": pname, value: m[value]})
+    long = pd.DataFrame(rows)
+    return long.pivot(index="perturbation", columns="model", values=value)
+
+
+def plot_robustness_heatmap(results: dict, value: str = "evasion_rate", figsize=(7, 5)):
+    """Heatmap of evasion rate (rows = perturbations, cols = models). Higher = more brittle."""
+    mat = robustness_matrix(results, value=value)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(
+        mat, annot=True, fmt=".2f", cmap="Oranges", vmin=0, vmax=1,
+        cbar_kws={"label": value}, ax=ax, linewidths=0.5, linecolor="white",
+    )
+    ax.set_title("Evasion rate under text perturbations (higher = more brittle)")
+    ax.set_xlabel("")
+    ax.set_ylabel("perturbation")
+    fig.tight_layout()
+    return fig, ax, mat
+
+
 def save_figure(fig, path: Path, dpi: int = 120) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
