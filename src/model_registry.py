@@ -57,7 +57,10 @@ class ModelSpec:
     decoder_method: Optional[str] = None  # "d1" (yes/no) | "d2" (fill-in-blank)
 
 
-# Roster for the encoder-side fair comparison (all reduced to P(toxic)).
+# Core roster: same-data, different-architecture fair comparison.
+# toxic-bert (BERT encoder, in-domain) is the evaluation basis; TF-IDF+SVM is
+# the non-neural floor we train on the SAME Jigsaw data; DistilGPT-2 (decoder,
+# in DECODER_SPECS) is the third architecture. All reduced to P(toxic).
 MODEL_SPECS = {
     "toxic-bert": ModelSpec(
         key="toxic-bert",
@@ -65,24 +68,30 @@ MODEL_SPECS = {
         family="BERT",
         specialization="in-domain (Jigsaw)",
     ),
-    "distilbert-tox": ModelSpec(
-        key="distilbert-tox",
-        model_id="martin-ha/toxic-comment-model",
-        family="DistilBERT",
-        specialization="general-toxicity",
-    ),
-    "roberta-tox": ModelSpec(
-        key="roberta-tox",
-        model_id="s-nlp/roberta_toxicity_classifier",
-        family="RoBERTa",
-        specialization="general-toxicity",
-    ),
     "tfidf-svm": ModelSpec(
         key="tfidf-svm",
         model_id="tfidf+linearsvm",
         family="non-neural",
         specialization="non-neural",
         kind="baseline",
+    ),
+}
+
+# Off-the-shelf classifiers trained on OTHER data — excluded from the fair
+# comparison (not same-data). Kept addressable as fallbacks, e.g. if our own
+# distillation does not pan out and we need a distilled reference point.
+FALLBACK_SPECS = {
+    "distilbert-tox": ModelSpec(
+        key="distilbert-tox",
+        model_id="martin-ha/toxic-comment-model",
+        family="DistilBERT",
+        specialization="general-toxicity (other data)",
+    ),
+    "roberta-tox": ModelSpec(
+        key="roberta-tox",
+        model_id="s-nlp/roberta_toxicity_classifier",
+        family="RoBERTa",
+        specialization="general-toxicity (other data)",
     ),
 }
 
@@ -108,8 +117,8 @@ DECODER_SPECS = {
     ),
 }
 
-# Every model addressable by --models in the eval scripts.
-ALL_SPECS = {**MODEL_SPECS, **DECODER_SPECS}
+# Every model addressable by --models in the eval scripts (core + fallback + decoder).
+ALL_SPECS = {**MODEL_SPECS, **FALLBACK_SPECS, **DECODER_SPECS}
 
 
 class HFSeqClassScorer:
@@ -184,6 +193,7 @@ class DecoderToxicScorer:
         method: str = "d1",
         model_id: Optional[str] = None,
         device: Optional[torch.device] = None,
+        max_comment_tokens: int = 512,
     ):
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -191,6 +201,9 @@ class DecoderToxicScorer:
 
         self.method = method
         self.device = device or get_device()
+        # DistilGPT-2's context is 1024 tokens; long Jigsaw comments overflow it.
+        # Truncate the comment so prompt + continuation stay well under the limit.
+        self.max_comment_tokens = max_comment_tokens
         path = model_id or (
             str(LOCAL_DISTILGPT2_DIR) if LOCAL_DISTILGPT2_DIR.exists() else DISTILGPT2_MODEL_ID
         )
@@ -201,6 +214,12 @@ class DecoderToxicScorer:
         self.model.eval()
         self.model_id = DISTILGPT2_MODEL_ID
         self.n_params = int(sum(p.numel() for p in self.model.parameters()))
+
+    def _truncate(self, text: str) -> str:
+        ids = self.tokenizer.encode(text)
+        if len(ids) > self.max_comment_tokens:
+            return self.tokenizer.decode(ids[: self.max_comment_tokens])
+        return text
 
     def predict_toxic_proba(self, texts: Sequence[str], batch_size: Optional[int] = None) -> np.ndarray:
         """Return P(toxic) per comment via the 'toxic' label of Tom's decoder."""
@@ -214,6 +233,7 @@ class DecoderToxicScorer:
 
         out: List[float] = []
         for text in texts:
+            text = self._truncate(text)
             if self.method == "d2":
                 prompt = build_d2_prompt(text)
                 pos, neg = D2_LABEL_CONTINUATIONS["toxic"]
