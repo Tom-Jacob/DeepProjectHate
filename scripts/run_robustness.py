@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from baselines import TfidfSvmScorer  # noqa: E402
-from model_registry import MODEL_SPECS, load_scorer  # noqa: E402
+from model_registry import ALL_SPECS, MODEL_SPECS, load_scorer  # noqa: E402
 from paths import PROCESSED_DIR, SEED  # noqa: E402
 from perturb import PERTURBATIONS, apply_perturbation  # noqa: E402
 from splits import get_split_frame  # noqa: E402
@@ -30,7 +30,7 @@ BASELINE_TRAIN_N = 20_000
 
 
 def get_fitted_scorer(key: str):
-    scorer = load_scorer(MODEL_SPECS[key])
+    scorer = load_scorer(ALL_SPECS[key])
     if isinstance(scorer, TfidfSvmScorer):
         train_df = get_split_frame("train")
         if len(train_df) > BASELINE_TRAIN_N:
@@ -66,7 +66,7 @@ def main() -> None:
     }
 
     for key in args.models:
-        if key not in MODEL_SPECS:
+        if key not in ALL_SPECS:
             print(f"  ! unknown model {key!r}, skipping")
             continue
         print(f"\n=== {key} ===")

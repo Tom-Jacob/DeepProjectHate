@@ -118,6 +118,38 @@ obfuscation. So toxic-bert is **most robust but least fair** — a genuine trade
 
 ---
 
+## 4b. Cross-part compatibility (encoder ↔ decoder)
+
+The evaluation runs at **two complementary levels**, and both work with Tom's
+decoder code:
+
+**Level 1 — binary P(toxic), cross-architecture (this half's harness).**
+Every model — encoders, the non-neural baseline, AND Tom's DistilGPT-2 — exposes
+one method, `predict_toxic_proba(texts) -> P(toxic)[]`. The decoder plugs in via
+a thin adapter (`DecoderToxicScorer` in `src/model_registry.py`) that calls Tom's
+`decoder.py` functions unchanged and reads the 'toxic' label (`d1` yes/no or `d2`
+fill-in-blank). So the decoder appears in the same comparison / fairness /
+robustness tables and figures as the encoders — just add it via `--models`:
+
+```powershell
+python scripts\run_model_comparison.py --models toxic-bert distilgpt2-d1 distilgpt2-d2 --eval-n 40
+python scripts\run_fairness.py   --models toxic-bert distilgpt2-d1
+python scripts\run_robustness.py --models toxic-bert distilgpt2-d1 --n 60
+```
+Registry keys: encoders/baseline in `MODEL_SPECS`, decoder in `DECODER_SPECS`,
+union in `ALL_SPECS`. The decoder is not in the default set (per-comment
+generation is slow on CPU) — request it explicitly, and use `--eval-n` to cap.
+
+**Level 2 — multi-label agreement (Tom's pre-existing infra).**
+`src/evaluate.py` (`encoder_decoder_agreement`, `agreement_by_label`),
+`src/join_scores.py`, and `notebooks/04_...` compare toxic-bert's 6-label output
+(`enc_p_{label}`) against the decoder's 6-label output (`d1_*` / `d2_*`). This is
+the deeper per-label comparison; the binary baselines don't join here. Untouched
+by this half's work.
+
+Sanity check (n=40): toxic-bert F1 ≈ 0.82 vs DistilGPT-2 prompting ≈ 0.28 with
+chance-level ROC-AUC — decoder prompting is far weaker at this scale (**H3**).
+
 ## 5. How to run everything
 
 ```powershell

@@ -53,7 +53,8 @@ class ModelSpec:
     model_id: str       # HF hub id or "tfidf+linearsvm"
     family: str         # architecture family: BERT / DistilBERT / RoBERTa / non-neural
     specialization: str # in-domain / general-toxicity / non-neural
-    kind: str = "hf"    # "hf" or "baseline"
+    kind: str = "hf"    # "hf" | "baseline" | "decoder"
+    decoder_method: Optional[str] = None  # "d1" (yes/no) | "d2" (fill-in-blank)
 
 
 # Roster for the encoder-side fair comparison (all reduced to P(toxic)).
@@ -84,6 +85,31 @@ MODEL_SPECS = {
         kind="baseline",
     ),
 }
+
+# Decoder-side models (Tom's DistilGPT-2 prompting), wrapped to the same
+# P(toxic) interface. Kept separate so the encoder scripts don't run them by
+# default (per-comment generation is slow on CPU); request via --models.
+DECODER_SPECS = {
+    "distilgpt2-d1": ModelSpec(
+        key="distilgpt2-d1",
+        model_id="distilgpt2",
+        family="DistilGPT-2",
+        specialization="decoder yes/no prompt",
+        kind="decoder",
+        decoder_method="d1",
+    ),
+    "distilgpt2-d2": ModelSpec(
+        key="distilgpt2-d2",
+        model_id="distilgpt2",
+        family="DistilGPT-2",
+        specialization="decoder fill-in-blank",
+        kind="decoder",
+        decoder_method="d2",
+    ),
+}
+
+# Every model addressable by --models in the eval scripts.
+ALL_SPECS = {**MODEL_SPECS, **DECODER_SPECS}
 
 
 class HFSeqClassScorer:
@@ -143,10 +169,69 @@ class HFSeqClassScorer:
         return np.concatenate(chunks)
 
 
+class DecoderToxicScorer:
+    """Adapt Tom's DistilGPT-2 prompting (``src/decoder.py``) to ``predict_toxic_proba``.
+
+    Reduces the decoder to a single P(toxic) using the 'toxic' label only, so it
+    plugs into the exact same comparison / fairness / robustness harness as the
+    encoders. ``method='d1'`` uses the yes/no prompt (P(yes)); ``method='d2'``
+    uses the fill-in-blank prompt (P('toxic')). Non-invasive: this calls the
+    functions in ``decoder.py`` unchanged.
+    """
+
+    def __init__(
+        self,
+        method: str = "d1",
+        model_id: Optional[str] = None,
+        device: Optional[torch.device] = None,
+    ):
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        from paths import DISTILGPT2_MODEL_ID, LOCAL_DISTILGPT2_DIR
+
+        self.method = method
+        self.device = device or get_device()
+        path = model_id or (
+            str(LOCAL_DISTILGPT2_DIR) if LOCAL_DISTILGPT2_DIR.exists() else DISTILGPT2_MODEL_ID
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(path)
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.model = AutoModelForCausalLM.from_pretrained(path).to(self.device)
+        self.model.eval()
+        self.model_id = DISTILGPT2_MODEL_ID
+        self.n_params = int(sum(p.numel() for p in self.model.parameters()))
+
+    def predict_toxic_proba(self, texts: Sequence[str], batch_size: Optional[int] = None) -> np.ndarray:
+        """Return P(toxic) per comment via the 'toxic' label of Tom's decoder."""
+        from decoder import (  # local import keeps decoder deps out of the base path
+            D2_LABEL_CONTINUATIONS,
+            build_d1_prompt,
+            build_d2_prompt,
+            score_fill_blank,
+            score_yes_no,
+        )
+
+        out: List[float] = []
+        for text in texts:
+            if self.method == "d2":
+                prompt = build_d2_prompt(text)
+                pos, neg = D2_LABEL_CONTINUATIONS["toxic"]
+                scored = score_fill_blank(self.model, self.tokenizer, prompt, self.device, pos, neg)
+                out.append(scored.p_positive_logprob)
+            else:
+                prompt = build_d1_prompt(text, "toxic")
+                scored = score_yes_no(self.model, self.tokenizer, prompt, self.device)
+                out.append(scored.p_yes_logprob)
+        return np.asarray(out, dtype=float)
+
+
 def load_scorer(spec: ModelSpec, device: Optional[torch.device] = None):
     """Instantiate a scorer for a spec. Baselines are constructed unfit."""
     if spec.kind == "baseline":
         from baselines import TfidfSvmScorer  # local import: sklearn-only path
 
         return TfidfSvmScorer()
+    if spec.kind == "decoder":
+        return DecoderToxicScorer(method=spec.decoder_method, device=device)
     return HFSeqClassScorer(spec.model_id, device=device)
