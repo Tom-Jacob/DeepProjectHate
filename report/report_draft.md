@@ -128,10 +128,24 @@ lexical shortcut. Training-time masking of the SVM does *not* reduce FPR (0.086 
 insufficient and harmful "fix".
 
 ### 3.5 Encoder vs. decoder agreement
-*Figures: `enc_dec_gold_agreement.png`, `enc_dec_agreement.png`.*
-[TO FILL from `run_agreement.py`: overall enc↔dec agreement, per-label agreement,
-each vs gold, and 2–3 disagreement case studies. Expectation: low agreement, with
-disagreements dominated by decoder errors.]
+*Figures: `enc_dec_gold_agreement.png`, `enc_dec_agreement.png`. (test n=150, 6 labels.)*
+
+Overall encoder↔decoder agreement is only **0.187** (per-label 0.16–0.23). Against
+gold on `toxic`, the encoder scores **0.913** but the decoder only **0.227** — the
+two barely agree not because they capture different *valid* signals, but because
+the decoder is degenerate: it labels almost every comment toxic. Of 150 comments
+the two disagree on `toxic` **115** times, and the disagreements are overwhelmingly
+decoder false positives on benign text.
+
+| comment (truncated) | gold | encoder | decoder |
+|---|:--:|:--:|:--:|
+| ":Replied here:" | 0 | 0 | 1 |
+| "US New Citizenship Test. In October of 2008 …" | 0 | 0 | 1 |
+| "This is your last warning. You will be blocked …" | 0 | 0 | 1 |
+
+Takeaway: cross-architecture agreement is a poor proxy for correctness here — a
+strong discriminative encoder and a degenerate generative prompt "disagree" almost
+everywhere, and the encoder is right nearly every time.
 
 ## 4. Conclusions and future work
 
