@@ -163,6 +163,22 @@ class HFSeqClassScorer:
         self.multi_label = problem == "multi_label_classification" or self.config.num_labels > 2
         self.pos_index = _find_positive_index(self.config.id2label)
         self.n_params = int(sum(p.numel() for p in self.model.parameters()))
+        # DistilBERT (and some saved students) reject token_type_ids even if the
+        # tokenizer emits them (e.g. BertTokenizer saved next to DistilBERT weights).
+        self._drop_token_type_ids = getattr(self.config, "model_type", "") == "distilbert"
+
+    def _encode(self, batch: Sequence[str]) -> dict:
+        enc = self.tokenizer(
+            list(batch),
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors="pt",
+        )
+        out = {k: v.to(self.device) for k, v in enc.items()}
+        if self._drop_token_type_ids:
+            out.pop("token_type_ids", None)
+        return out
 
     @torch.no_grad()
     def predict_toxic_proba(self, texts: Sequence[str], batch_size: int = 32) -> np.ndarray:
@@ -174,14 +190,7 @@ class HFSeqClassScorer:
         chunks: List[np.ndarray] = []
         for start in range(0, len(texts), batch_size):
             batch = texts[start : start + batch_size]
-            enc = self.tokenizer(
-                batch,
-                padding=True,
-                truncation=True,
-                max_length=self.max_length,
-                return_tensors="pt",
-            )
-            enc = {k: v.to(self.device) for k, v in enc.items()}
+            enc = self._encode(batch)
             logits = self.model(**enc).logits
             if self.multi_label:
                 # Independent sigmoid per label; take the 'toxic' logit.

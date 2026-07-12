@@ -39,8 +39,15 @@ def model_ready(key: str) -> Tuple[bool, str]:
         return True, "HF hub (distilgpt2) or cache"
 
     if key == "distilgpt2-d1-ft":
-        if LOCAL_DISTILGPT2_D1_FT_DIR.exists():
+        cfg = LOCAL_DISTILGPT2_D1_FT_DIR / "config.json"
+        if cfg.exists():
             return True, f"local {LOCAL_DISTILGPT2_D1_FT_DIR.name}"
+        if LOCAL_DISTILGPT2_D1_FT_DIR.exists():
+            return (
+                False,
+                f"{LOCAL_DISTILGPT2_D1_FT_DIR} exists but config.json missing "
+                "(unzip so weights sit directly under models/distilgpt2-d1-ft/)",
+            )
         return (
             False,
             f"missing {LOCAL_DISTILGPT2_D1_FT_DIR} — run notebooks/10_decoder_finetune_colab.ipynb",
@@ -53,6 +60,14 @@ def model_ready(key: str) -> Tuple[bool, str]:
             False,
             f"missing {LOCAL_DISTILBERT_STUDENT_DIR} — run notebooks/09_distillation_colab.ipynb",
         )
+
+    if key == "distilbert-tox":
+        return True, "HF hub (martin-ha/toxic-comment-model) or cache"
+
+    if key == "distilgpt2-d2":
+        if LOCAL_DISTILGPT2_DIR.exists():
+            return True, f"local {LOCAL_DISTILGPT2_DIR.name} (D2 prompt)"
+        return True, "HF hub (distilgpt2) or cache"
 
     return True, "ok"
 

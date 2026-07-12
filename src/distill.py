@@ -237,7 +237,12 @@ def train_distill(
                     max_length=self.max_length,
                     return_tensors="pt",
                 )
-                s_enc = {k: v.to(self.device) for k, v in s_enc.items()}
+                # DistilBERT student rejects token_type_ids (BertTokenizer may emit them).
+                s_enc = {
+                    k: v.to(self.device)
+                    for k, v in s_enc.items()
+                    if k in ("input_ids", "attention_mask")
+                }
                 t_enc = self.teacher_tok(
                     batch_texts,
                     padding=True,
@@ -337,6 +342,16 @@ class DistilBertStudentScorer:
         self.n_params = int(sum(p.numel() for p in self.model.parameters()))
         self.toxic_index = TOXIC_LABELS.index("toxic")
 
+    @staticmethod
+    def _batch_to_device(enc, device: torch.device) -> dict:
+        # Student may be saved with a BertTokenizer that emits token_type_ids;
+        # DistilBertForSequenceClassification rejects that kwarg.
+        return {
+            k: v.to(device)
+            for k, v in enc.items()
+            if k in ("input_ids", "attention_mask")
+        }
+
     @torch.no_grad()
     def predict_proba(self, texts: Sequence[str], batch_size: int = 32) -> np.ndarray:
         texts = list(texts)
@@ -352,7 +367,7 @@ class DistilBertStudentScorer:
                 max_length=self.max_length,
                 return_tensors="pt",
             )
-            enc = {k: v.to(self.device) for k, v in enc.items()}
+            enc = self._batch_to_device(enc, self.device)
             probs = torch.sigmoid(self.model(**enc).logits).cpu().numpy()
             chunks.append(probs)
         return np.vstack(chunks)

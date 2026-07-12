@@ -4,7 +4,7 @@
 **Repo:** https://github.com/Tom-Jacob/DeepProjectHate
 
 > Draft for the ≤8-page report. Figures are in `report/figures/`. Encoder/SVM
-> refreshed at test n=500; decoder comparison + fairness refreshed at n=200
+> refreshed at test n=500; decoder (incl. d1-ft) comparison + fairness at n=200
 > (2026-07-12). Word export: `report/Words_That_Harm_Report.docx`.
 > Ethics §6.1–6.2 filled by the team; §6.3 reflection still to write (human-only).
 
@@ -96,12 +96,15 @@ latency — most of the task is lexical. The decoder is near chance (ROC-AUC ≈
 |---|:--:|:--:|
 | tfidf-svm | 0.090 | 0.000 |
 | toxic-bert | 0.152 | 0.000 |
+| distilgpt2-d1-ft | 0.505 | 0.000 |
 | distilgpt2-d1 | 0.867 | **1.000** |
 
 Control FPR is 0 for the classifiers → false positives are *specifically*
 identity-driven ("I am gay", "I am Muslim", "I am transgender" are flagged). The
-specialized encoder is **less fair** than the linear baseline (H1). The decoder
-flags essentially everything (control FPR 1.0) — degenerate as a classifier.
+specialized encoder is **less fair** than the linear baseline (H1). Zero-shot
+decoder flags essentially everything (control FPR 1.0); the D1 fine-tune
+removes that degeneracy (control 0) but still over-flags identity mentions
+(~50% FPR).
 
 ### 3.3 Robustness to obfuscation
 *Figure: `robustness_evasion_heatmap.png`.* Evasion = flagged-toxic comment that
@@ -175,24 +178,28 @@ python scripts/run_robustness.py --models toxic-bert distilbert-student --n 200
 ```
 
 ### 3.7 Decoder fine-tune (D1 yes/no, binary toxic)
-*Colab: `notebooks/10_decoder_finetune_colab.ipynb`. Registry key: `distilgpt2-d1-ft`.*
+*Colab: `notebooks/10_decoder_finetune_colab.ipynb`. Registry key: `distilgpt2-d1-ft`.
+Weights: `models/distilgpt2-d1-ft/`. Eval: test n=200; fairness probe n=210.*
 
 Zero-shot DistilGPT-2 prompting is near chance. We keep that result and add a
-**small supervised probe**: fine-tune DistilGPT-2 with causal LM loss **only on**
-the answer tokens (` yes` / ` no`) after the same D1 prompt, on ~8k stratified
-train comments (1–2 epochs). Eval uses the identical `score_yes_no` logprob path.
+**supervised probe**: fine-tune DistilGPT-2 with causal LM loss **only on** the
+answer tokens (` yes` / ` no`) after the same D1 prompt (20k stratified train /
+2k val, 4 epochs; best val answer acc **0.942**). Eval uses the identical
+`score_yes_no` logprob path.
 
 | model | F1 | ROC-AUC | identity FPR | notes |
 |---|:--:|:--:|:--:|---|
 | distilgpt2-d1 (zero-shot) | 0.189 | 0.46 | 0.867 | degenerate / near chance |
-| distilgpt2-d1-ft (fine-tuned) | `[TBD after Colab]` | `[TBD]` | `[TBD]` | small probe, binary toxic |
+| distilgpt2-d1-ft (fine-tuned) | **0.590** | **0.965** | 0.505 | usable ranking; still high FPR |
 
 **Claim:** failure of zero-shot prompting at DistilGPT-2 scale does **not** imply
-decoders cannot learn the task — light task-specific adaptation recovers usable
-discrimination while preserving the architecture comparison.
+decoders cannot learn the task — light task-specific adaptation recovers strong
+discrimination (ROC-AUC 0.46 → 0.97; F1 0.19 → 0.59) while preserving the
+architecture. Identity FPR improves vs zero-shot (0.87 → 0.51; control FPR
+1.0 → 0.0) but remains worse than toxic-bert (0.15) and the SVM (0.09).
 
 ```bash
-python scripts/train_decoder_ft.py --max-train-samples 8000 --epochs 2
+python scripts/train_decoder_ft.py --max-train-samples 20000 --epochs 4
 python scripts/run_model_comparison.py --models toxic-bert distilgpt2-d1 distilgpt2-d1-ft --eval-n 200
 python scripts/run_fairness.py --models toxic-bert distilgpt2-d1 distilgpt2-d1-ft
 ```
@@ -203,8 +210,9 @@ python scripts/run_fairness.py --models toxic-bert distilgpt2-d1 distilgpt2-d1-f
    109M encoder; "bigger" is not the story.
 2. **The encoder's real value is robustness to obfuscation**, not raw accuracy.
 3. **Zero-shot decoder prompting fails at DistilGPT-2 scale** — near chance and
-   often degenerate; a **small D1 fine-tune** (§3.7) tests whether light
-   supervision recovers usable discrimination without changing architecture.
+   often degenerate; a **D1 fine-tune** (§3.7) recovers usable discrimination
+   (test F1 0.59, ROC-AUC 0.97) without changing architecture, though identity
+   FPR stays high (0.51).
 4. **Identity bias is data-driven, not architectural** — it appears even in the
    linear model, and masking the identity token erases it, revealing a lexical
    shortcut. Fixing it via naive training-masking trades recall for little gain.

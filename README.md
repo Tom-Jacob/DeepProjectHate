@@ -97,19 +97,25 @@ Add the decoder or student: `--models toxic-bert tfidf-svm distilgpt2-d1 distilg
 | 04 | **Fair stress tests** — fairness + robustness + masking (cache-first) |
 | 09 | **Colab distillation** (soft KD, 6 labels) |
 | 10 | **Colab decoder fine-tune** (D1 yes/no, binary toxic) |
+| 11 | **SVM rigorous audit** — metrics, ablations, fairness, robustness, masking |
+| 12 | **Encoder rigorous audit** — toxic-bert · distilbert-tox · distilbert-student |
+| 13 | **Decoder rigorous audit** — distilgpt2-d1 · d2 · d1-ft (skips FT if missing) |
 | `archive/03–08` | Superseded exploration/audit wrappers (reference only) |
 
 Roster in 03–04: `toxic-bert`, `tfidf-svm`, `distilgpt2-d1`, `distilgpt2-d1-ft`, `distilbert-student` (skips missing weights with a clear message). Prefer cached `data/processed/*.json`; optional `LIVE_RERUN` for a small live pass.
 
 Distillation: Colab notebook 09 → `models/distilbert-student/`.  
-Decoder FT: Colab notebook 10 → `models/distilgpt2-d1-ft/` (keep zero-shot `distilgpt2-d1` in tables).
+Decoder FT: Colab notebook 10 → `models/distilgpt2-d1-ft/` (keep zero-shot `distilgpt2-d1` in tables).  
+SVM deep-dive: notebook 11 → `data/processed/svm_rigorous_audit.json`.  
+Encoder deep-dive: notebook 12 → `data/processed/encoder_rigorous_audit.json`.  
+Decoder deep-dive: notebook 13 → `data/processed/decoder_rigorous_audit.json`.
 
 ## Repository layout
 ```
 src/            model_registry, roster, distill, encoder, decoder, baselines, fairness,
                 perturb, intervention, evaluate, plots, data, splits, device, paths
-scripts/        download_*, make_splits, train_distill, train_decoder_ft, run_*, plot_*
-notebooks/      01–02 exploration · 03–04 fair comparison · 09 distill · 10 decoder FT
+scripts/        download_*, make_splits, train_distill, train_decoder_ft, run_*, plot_*, export_report_docx
+notebooks/      01–02 exploration · 03–04 fair comparison · 09–10 Colab · 11–13 rigorous audits
                 archive/ (old 03–08)
 docs/           DEVELOPER_GUIDE, PROGRESS, HANDOFF, SYNC_STATUS
 report/         report_draft.md, Words_That_Harm_Report.docx, Slides.pptx, figures/
