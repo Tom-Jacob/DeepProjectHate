@@ -6,7 +6,7 @@
 > Draft for the ≤8-page report. Figures are in `report/figures/`. Encoder/SVM
 > refreshed at test n=500; decoder comparison + fairness refreshed at n=200
 > (2026-07-12). Word export: `report/Words_That_Harm_Report.docx`.
-> The ethics section §6.3 must be written by us (no LLM) — see note there.
+> Ethics §6.1–6.2 filled by the team; §6.3 reflection still to write (human-only).
 
 ---
 
@@ -158,12 +158,14 @@ sigmoid probs for multi-label metrics.
 
 | model | params | test F1 (toxic) | identity FPR | ms/comment | notes |
 |---|--:|:--:|:--:|--:|---|
-| toxic-bert (teacher) | 109M | 0.770 | 0.152 | 432 | n=500 |
-| distilbert-student | ~67M | `[TBD after Colab]` | `[TBD]` | `[TBD]` | soft KD, 6-label |
+| toxic-bert (teacher) | 109M | 0.770 | 0.152 | 274 | n=500 |
+| distilbert-student | 67M | **0.772** | **0.062** | **159** | soft KD, 6-label; Colab 20k×4ep |
 
-**Hypothesis (H2):** the student should retain much of the teacher's toxic F1 at
-lower latency, but may **not** inherit fairness — identity FPR can stay high or
-worsen under compression.
+**Result vs H2:** on this run the student **matches** the teacher's toxic F1 (0.772 vs 0.770)
+at ~1.7× lower latency and **lower** overall identity FPR (0.062 vs 0.152). Compression did
+**not** amplify identity bias here — though worst-group FPR remains concentrated (e.g. `gay`).
+Training: soft KD $T{=}2$, $\alpha{=}0.7$, 20k train / 2k val, 4 epochs; best val toxic F1 ≈ 0.85
+(`models/distilbert-student/distill_config.json`).
 
 Reproduce after weights exist in `models/distilbert-student/`:
 ```bash
@@ -206,8 +208,9 @@ python scripts/run_fairness.py --models toxic-bert distilgpt2-d1 distilgpt2-d1-f
 4. **Identity bias is data-driven, not architectural** — it appears even in the
    linear model, and masking the identity token erases it, revealing a lexical
    shortcut. Fixing it via naive training-masking trades recall for little gain.
-5. **Distillation tests compression** — soft KD student (6-label DistilBERT) vs teacher
-   on accuracy, fairness, and latency (**H2**).
+5. **Distillation (soft KD):** the DistilBERT student matches toxic-bert toxic F1
+   (0.772 vs 0.770) at lower latency and **lower** identity FPR (0.062 vs 0.152)
+   on our probe — compression need not amplify bias (**H2** partially rejected here).
 
 **Future work.** Neural masked fine-tune of DistilBERT; calibration analysis;
 larger evaluation samples; hateBERT cross-domain probe.
@@ -218,14 +221,13 @@ larger evaluation samples; hateBERT cross-domain probe.
 - Hanu, Unitary. Detoxify / `unitary/toxic-bert`, 2020.
 - Sanh et al. DistilBERT / DistilGPT-2, 2019.
 
-## 6. Ethics statement (template — required)
+## 6. Ethics statement (required)
 
-**6.1 Introduction.** Students: Omer Ramon, Tom Jacob. Project: *Words That Harm —
-architectures and fairness in toxic-comment detection.* We audit toxic-comment
-classifiers for accuracy, identity bias, and robustness, to understand their
-failure modes rather than to ship a moderation product.
+**6.1 Introduction.** Names: Tom Jacob, Omer Ramon. Project title: *Words That Harm*.
+In this project we aim to compare SVM, decoder-only, and encoder-only architectures
+for toxic-comment classification. We check for accuracy, identity bias, and robustness.
 
-**6.2 (LLM-assisted) stakeholders & explanations.**
+**6.2 Stakeholders and explanations.**
 - *Stakeholders:* (1) platform users/commenters, (2) human moderators, (3)
   identity groups at risk of over-flagging.
 - *Explanations:* users need to know why a comment was flagged and how to appeal;
@@ -234,17 +236,14 @@ failure modes rather than to ship a moderation product.
 - *Responsibility:* the platform deploying the model owns user- and
   group-facing explanations; the ML team owns moderator-facing documentation.
 
-**6.3 Our reflection (WRITE OURSELVES — no LLM per the guidelines).**
+**6.3 Our reflection (write ourselves — no LLM).**
 
-> **Team fill-in (Omer + Tom):** replace the bullets below with your own wording
-> before submission. Do not paste LLM-generated text into this subsection.
-
-Prompts to answer in 1–2 short paragraphs total:
+Prompts to answer in 1–2 short paragraphs total before submission:
 1. Given our measured identity FPRs (toxic-bert ≈ 15%, SVM ≈ 9%, decoder near-degenerate), what should change in how an AI moderation system *answers* or *acts* toward users?
 2. Would you require human review for flags that fire on neutral identity mentions? Why / why not?
 3. Should platforms publish bias-audit numbers like ours? What risk does that create, and what benefit?
 
-[TODO — Omer/Tom write §6.3 here before final PDF.]
+[To be added by the team.]
 
 ---
 

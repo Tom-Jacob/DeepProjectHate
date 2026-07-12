@@ -155,6 +155,17 @@ def main() -> None:
         payload["models"][key] = model_block
 
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if RESULTS_PATH.exists():
+        try:
+            existing = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+            if isinstance(existing.get("models"), dict):
+                merged = dict(existing["models"])
+                merged.update(payload["models"])
+                payload["models"] = merged
+                print(f"  merged into existing {RESULTS_PATH.name} ({len(merged)} models)")
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"  ! could not merge existing results ({exc}); overwriting")
+
     with open(RESULTS_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     print(f"\nWrote {RESULTS_PATH}")
