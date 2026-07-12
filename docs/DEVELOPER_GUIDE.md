@@ -47,13 +47,16 @@ src/
   fairness.py        identity templates, build_identity_probe_df, per_group_fpr
   perturb.py         PERTURBATIONS registry, apply_perturbation
   intervention.py    mask_terms / strip_terms, inference_ablation
+  distill.py         soft KD toxic-bert → DistilBERT (6-label) + DistilBertStudentScorer
   evaluate.py        multi-label metrics + agreement                   (Tom's)
   plots.py           all figure helpers + save_figure
 
-scripts/             CLI wrappers around the above (see §5)
+scripts/             CLI wrappers (incl. train_distill.py) — see §5
 ```
 
 `★` = the file to read first; everything routes through `load_scorer`.
+Registry keys include `distilbert-student` (`kind=student`) once
+`models/distilbert-student/` exists.
 
 ---
 
@@ -157,11 +160,14 @@ python scripts\run_model_comparison.py --quick                     # or --eval-n
 python scripts\run_fairness.py
 python scripts\run_robustness.py --quick
 python scripts\run_masking.py
+python scripts\train_distill.py --epochs 2             # Colab GPU preferred
+python scripts\train_decoder_ft.py --max-train-samples 8000
 python scripts\run_agreement.py --n 150
 python scripts\plot_model_comparison.py --split test
 python scripts\plot_fairness_robustness.py
 ```
-Common flags: `--models <keys...>` (any of `ALL_SPECS`), `--eval-n` / `--n`
+Common flags: `--models <keys...>` (any of `ALL_SPECS`, including `distilbert-student`,
+`distilgpt2-d1-ft`), `--eval-n` / `--n`
 (sample size), `--target toxic|toxic_any`, `--threshold`. Add the decoder to any
 run with `--models toxic-bert tfidf-svm distilgpt2-d1`.
 

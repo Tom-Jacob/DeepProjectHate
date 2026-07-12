@@ -41,6 +41,12 @@ LOCAL_MODEL_DIR = MODELS_DIR / "toxic-bert"
 
 DISTILGPT2_MODEL_ID = "distilgpt2"
 LOCAL_DISTILGPT2_DIR = MODELS_DIR / "distilgpt2"
+LOCAL_DISTILGPT2_D1_FT_DIR = MODELS_DIR / "distilgpt2-d1-ft"
+DECODER_FT_RESULTS_PATH = PROCESSED_DIR / "decoder_ft_results.json"
+
+STUDENT_INIT_ID = "distilbert-base-uncased"
+LOCAL_DISTILBERT_STUDENT_DIR = MODELS_DIR / "distilbert-student"
+DISTILL_RESULTS_PATH = PROCESSED_DIR / "distill_results.json"
 
 DECODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "decoder_smoke_scores.parquet"
 ENCODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "encoder_smoke_scores.parquet"

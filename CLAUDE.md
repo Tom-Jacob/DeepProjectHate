@@ -51,11 +51,21 @@ preserves accuracy but amplifies identity FPR.
 ## Common commands
 
 ```bash
-conda activate deep_learn                       # or use the full python.exe path above
-python scripts/make_splits.py                   # build split_indices.parquet
-python scripts/run_formal_eval.py --quick       # toxic-bert eval, 500/split -> benchmark_results.json
-python scripts/run_formal_eval.py               # full eval (slow on CPU)
+conda activate deep_learn
+$env:PYTHONIOENCODING = "utf-8"                 # Windows + non-ASCII paths
+python scripts/make_splits.py
+python scripts/run_formal_eval.py --quick
+python scripts/run_model_comparison.py --quick  # or --eval-n 500
+python scripts/run_fairness.py
+python scripts/run_robustness.py --quick
+python scripts/run_masking.py
+python scripts/run_agreement.py --n 150
+python scripts/plot_model_comparison.py --split test
+python scripts/plot_fairness_robustness.py
 ```
+
+Deliverables live under `report/` (`report_draft.md`, `Words_That_Harm_Report.docx`,
+`PRESENTATION_OUTLINE.md`, `figures/`). See README submission checklist.
 
 ## Repo map
 

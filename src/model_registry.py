@@ -12,6 +12,7 @@ The TF-IDF + SVM baseline in ``baselines.py`` implements the same interface,
 so the comparison script can treat neural and non-neural models identically.
 """
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 import numpy as np
@@ -53,7 +54,7 @@ class ModelSpec:
     model_id: str       # HF hub id or "tfidf+linearsvm"
     family: str         # architecture family: BERT / DistilBERT / RoBERTa / non-neural
     specialization: str # in-domain / general-toxicity / non-neural
-    kind: str = "hf"    # "hf" | "baseline" | "decoder"
+    kind: str = "hf"    # "hf" | "baseline" | "decoder" | "student"
     decoder_method: Optional[str] = None  # "d1" (yes/no) | "d2" (fill-in-blank)
 
 
@@ -74,6 +75,13 @@ MODEL_SPECS = {
         family="non-neural",
         specialization="non-neural",
         kind="baseline",
+    ),
+    "distilbert-student": ModelSpec(
+        key="distilbert-student",
+        model_id="distilbert-student",  # local models/distilbert-student
+        family="DistilBERT",
+        specialization="KD student (toxic-bert → DistilBERT, 6-label)",
+        kind="student",
     ),
 }
 
@@ -103,7 +111,15 @@ DECODER_SPECS = {
         key="distilgpt2-d1",
         model_id="distilgpt2",
         family="DistilGPT-2",
-        specialization="decoder yes/no prompt",
+        specialization="decoder yes/no prompt (zero-shot)",
+        kind="decoder",
+        decoder_method="d1",
+    ),
+    "distilgpt2-d1-ft": ModelSpec(
+        key="distilgpt2-d1-ft",
+        model_id="distilgpt2-d1-ft",
+        family="DistilGPT-2",
+        specialization="decoder yes/no (fine-tuned on toxic)",
         kind="decoder",
         decoder_method="d1",
     ),
@@ -111,7 +127,7 @@ DECODER_SPECS = {
         key="distilgpt2-d2",
         model_id="distilgpt2",
         family="DistilGPT-2",
-        specialization="decoder fill-in-blank",
+        specialization="decoder fill-in-blank (zero-shot)",
         kind="decoder",
         decoder_method="d2",
     ),
@@ -197,22 +213,38 @@ class DecoderToxicScorer:
     ):
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        from paths import DISTILGPT2_MODEL_ID, LOCAL_DISTILGPT2_DIR
+        from paths import (
+            DISTILGPT2_MODEL_ID,
+            LOCAL_DISTILGPT2_D1_FT_DIR,
+            LOCAL_DISTILGPT2_DIR,
+        )
 
         self.method = method
         self.device = device or get_device()
-        # DistilGPT-2's context is 1024 tokens; long Jigsaw comments overflow it.
-        # Truncate the comment so prompt + continuation stay well under the limit.
         self.max_comment_tokens = max_comment_tokens
-        path = model_id or (
-            str(LOCAL_DISTILGPT2_DIR) if LOCAL_DISTILGPT2_DIR.exists() else DISTILGPT2_MODEL_ID
-        )
+
+        mid = model_id or DISTILGPT2_MODEL_ID
+        if mid in ("distilgpt2-d1-ft", "distilgpt2-ft"):
+            path = str(LOCAL_DISTILGPT2_D1_FT_DIR)
+            if not LOCAL_DISTILGPT2_D1_FT_DIR.exists():
+                raise FileNotFoundError(
+                    f"Fine-tuned decoder not found at {path}. "
+                    "Train on Colab: notebooks/10_decoder_finetune_colab.ipynb "
+                    "or: python scripts/train_decoder_ft.py"
+                )
+            self.model_id = "distilgpt2-d1-ft"
+        elif Path(mid).exists():
+            path = mid
+            self.model_id = Path(mid).name
+        else:
+            path = str(LOCAL_DISTILGPT2_DIR) if LOCAL_DISTILGPT2_DIR.exists() else DISTILGPT2_MODEL_ID
+            self.model_id = DISTILGPT2_MODEL_ID
+
         self.tokenizer = AutoTokenizer.from_pretrained(path)
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model = AutoModelForCausalLM.from_pretrained(path).to(self.device)
         self.model.eval()
-        self.model_id = DISTILGPT2_MODEL_ID
         self.n_params = int(sum(p.numel() for p in self.model.parameters()))
 
     def _truncate(self, text: str) -> str:
@@ -253,5 +285,22 @@ def load_scorer(spec: ModelSpec, device: Optional[torch.device] = None):
 
         return TfidfSvmScorer()
     if spec.kind == "decoder":
-        return DecoderToxicScorer(method=spec.decoder_method, device=device)
-    return HFSeqClassScorer(spec.model_id, device=device)
+        return DecoderToxicScorer(
+            method=spec.decoder_method,
+            model_id=spec.model_id,
+            device=device,
+        )
+    if spec.kind == "student":
+        from distill import DistilBertStudentScorer
+        from paths import LOCAL_DISTILBERT_STUDENT_DIR
+
+        return DistilBertStudentScorer(model_path=str(LOCAL_DISTILBERT_STUDENT_DIR), device=device)
+    # Prefer local toxic-bert mirror when present (avoids hub / None path issues).
+    model_id = spec.model_id
+    if spec.key == "toxic-bert":
+        from paths import LOCAL_MODEL_DIR, MODEL_ID
+
+        model_id = str(LOCAL_MODEL_DIR) if LOCAL_MODEL_DIR.exists() else MODEL_ID
+        if model_id is None:
+            raise TypeError("toxic-bert model id is None — check paths.MODEL_ID / LOCAL_MODEL_DIR")
+    return HFSeqClassScorer(model_id, device=device)

@@ -197,14 +197,17 @@ data/processed/       # results JSON + splits (gitignored)
 
 ## 7. Status & what's left
 
-Done: Phase 0, 1, 2, 3 (encoder side). Tom: Phase 6 (decoder) in progress.
+Done: Phase 0–3 (encoder audit), decoder integration, masking, agreement, notebooks
+05–09 scaffolding, soft-KD distillation **code** (`src/distill.py`, `train_distill.py`).
 
-Not done (by design / deadline):
-- **Phase 4 distillation** (toxic-bert → DistilBERT) — needs a GPU; run on Colab.
-- **Phase 5 masking intervention** — cut to future work.
-- **Phase 7** integration (enc-vs-dec agreement, calibration, case studies).
-- **Phase 8** deliverables (report, README overhaul, slides + video, ethics template).
+**You still need:** run Colab notebook 09 (full GPU train) → drop weights into
+`models/distilbert-student/` → re-run comparison/fairness/robustness with
+`distilbert-student` → fill §3.6 numbers in the report → write ethics §6.3 → record video.
+
+CPU smoke: `python scripts/train_distill.py --max-train-samples 1500 --epochs 1`
+(directional only).
 
 Consolidated narrative for the report: specialization (toxic-bert) buys accuracy
-and robustness but costs fairness; compression (small models) loses on all axes;
-a non-neural baseline is a shockingly strong, fast floor.
+and robustness but costs fairness; compression (student) tests whether bias shrinks
+with size; a non-neural baseline is a strong, fast floor; decoder prompting fails
+at DistilGPT-2 scale.
