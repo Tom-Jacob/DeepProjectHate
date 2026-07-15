@@ -153,6 +153,20 @@ toxic-bert. The loss combines soft KD (sigmoid KL divergence at temperature
 $T{=}2$, weight $\alpha{=}0.7$) with hard multilabel BCE ($1{-}\alpha{=}0.3$),
 applied to all six Jigsaw labels. Trained on 20k examples for 4 epochs.
 
+**Decoder input truncation.** DistilGPT-2 has a 1024-token context window
+(learned positional embeddings). When a long Jigsaw comment is wrapped in the
+D1 or D2 prompt template the total token count can exceed this limit. Tokens
+beyond position 1024 receive out-of-range positional indices, producing
+corrupted logits and unreliable scores. To prevent this, we truncate the
+tokenized prompt from the *left* so that `prompt + continuation` never exceeds
+1024 tokens. Left-truncation preserves the tail of the prompt — the `"Answer:"`
+or `"This comment is"` suffix — which is the part the causal model conditions
+on when scoring the next token. The beginning of very long comments (roughly
+the top 1% of Jigsaw by length) is clipped, but the question/continuation
+tokens the model needs to make its prediction remain intact. Encoder models
+(BERT, DistilBERT) use a separate `truncation=True` parameter during
+tokenization and are unaffected.
+
 ### 2.4 Perturbation methods
 
 To test robustness we take comments already flagged as toxic and apply
