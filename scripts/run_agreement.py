@@ -1,9 +1,9 @@
-"""P7 integration: encoder vs decoder agreement + disagreement case studies.
+"""Encoder vs decoder agreement + disagreement case studies.
 
-Scores the same test sample with toxic-bert (6-label) and Tom's DistilGPT-2 D1
-prompting (6-label), then measures how often the two architectures agree, how
-well each matches gold, and surfaces comments where they disagree (the gold of
-qualitative analysis). Reuses Tom's evaluate.py / plots.py unchanged.
+Scores the same test sample with toxic-bert (6-label) and the fine-tuned
+DistilGPT-2 D1-ft (6-label yes/no prompt), then measures how often the two
+architectures agree, how well each matches gold, and surfaces comments where
+they disagree. Uses D1-ft (the better decoder) so the comparison is meaningful.
 
 DistilGPT-2 is slow on CPU (per label, per comment) — keep --n small.
 
@@ -43,8 +43,8 @@ def main() -> None:
     enc = load_toxic_bert()
     enc_df = enc.predict_df(texts)  # comment_text, enc_p_{label}, enc_pred_{label}
 
-    print("Scoring decoder (DistilGPT-2 D1, 6-label) — slow on CPU ...")
-    dec = load_scorer(ALL_SPECS["distilgpt2-d1"])
+    print("Scoring decoder (DistilGPT-2 D1-ft, 6-label) — slow on CPU ...")
+    dec = load_scorer(ALL_SPECS["distilgpt2-d1-ft"])
     trunc = [dec._truncate(t) for t in texts]  # keep prompt under DistilGPT-2's 1024 ctx
     dec_df = predict_multilabel_d1(dec.model, dec.tokenizer, trunc, dec.device)
     dec_df["comment_text"] = texts  # restore original text so the join matches

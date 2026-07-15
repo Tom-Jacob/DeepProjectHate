@@ -3,10 +3,11 @@
 **Authors:** Omer Ramon, Tom Jacob · Technion EE046211 Deep Learning
 **Repo:** https://github.com/Tom-Jacob/DeepProjectHate
 
-> Draft for the ≤8-page report. Figures are in `report/figures/`. Encoder/SVM
-> refreshed at test n=500; decoder (incl. d1-ft) comparison + fairness at n=200
-> (2026-07-12). Word export: `report/Words_That_Harm_Report.docx`.
-> Ethics §6.1–6.2 filled by the team; §6.3 reflection still to write (human-only).
+> Draft for the ≤8-page report. Figures are in `report/figures/`.
+> **Pending Colab run** (`notebooks/15_full_eval_colab.ipynb`): full test for
+> encoders (63k), decoders at 5k, bidirectional robustness (n=1000), fairness
+> with D2/D1-ft + perturbation probes, agreement with D1-ft. Fill placeholders
+> (marked "—") after run completes. Ethics §6.3 still to write (human-only).
 
 ---
 
@@ -91,6 +92,12 @@ it focuses on the positive (toxic) class.
 **ROC-AUC** (area under the ROC curve, plotting TPR vs FPR). Measures overall
 discriminative ability. We report it alongside PR-AUC for completeness.
 
+**Why F1, not accuracy?** The Jigsaw dataset is highly imbalanced (~10%
+toxic): a trivial all-negative classifier achieves 90% accuracy while detecting
+nothing. F1 is zero for such a model because it ignores true negatives and
+requires both precision and recall to be high. We therefore report F1 as our
+primary metric throughout.
+
 For each model we also report **parameter count** and **inference latency**
 (ms/comment, CPU) to ensure capacity-fair comparison.
 
@@ -162,13 +169,22 @@ character-level robustness; upper-case tests case normalization.
 
 ### 2.5 Fairness probe
 
-Following Dixon et al. (2018), we construct 210 neutral sentences by filling 10
-template carriers ("I am {g}.", "My friend is {g}.", etc.) with 21 identity
-terms across 5 categories (religion, race, orientation, gender, disability). By
-construction none is toxic, so any positive prediction is a false positive. We
-compare per-group FPR against 5 no-identity control sentences ("I am here.",
-"My friend is nice.") to verify that the bias is identity-driven, not
-template-driven.
+Following Dixon et al. (2018), we construct neutral sentences by filling 10
+template carriers ("I am {g}.", "My friend is {g}.", etc.) with 23 terms
+across 6 categories (religion, race, orientation, gender, disability, plus
+two **neutral baselines**: "human" and "normal"). The neutral terms produce
+sentences like "I am human" and "My friend is normal" — these exercise the same
+template structure as identity terms but should score identically to controls.
+This gives 230 probe sentences total. By construction none is toxic, so any
+positive prediction is a false positive. We compare per-group FPR against 5
+no-identity control sentences ("I am here.", "My friend is nice.") to verify
+that the bias is identity-driven, not template-driven.
+
+**Perturbation-augmented fairness probes.** We additionally apply each of the 6
+perturbations (§2.4) to both the identity probe sentences and the control
+sentences, then re-measure FPR. This tests whether surface noise amplifies or
+reduces identity bias — e.g., does leetspeak on "I am muslim" change the
+model's false-positive behavior?
 
 ### 2.6 Masking intervention
 
@@ -194,23 +210,27 @@ task, and determine whether a larger model actually earns its cost.
 
 **Protocol.** Score the val and test splits with each model's
 `predict_toxic_proba` at threshold 0.5. Measure F1, PR-AUC, ROC-AUC, and
-inference latency (ms/comment, CPU). Encoder and SVM use test n=500; decoder
-n=200 (constrained by decoder latency).
+inference latency (ms/comment, GPU). Encoders, SVM, and student are evaluated
+on the **full test set** (63,978 comments); decoders on n=5,000 (due to
+per-comment generation latency). All runs executed on Colab GPU (T4).
 
-**Results.**
+**Results.** *(Placeholder — update after Colab run `notebooks/15_full_eval_colab.ipynb`.)*
 
-| model | params | F1 | PR-AUC | ROC-AUC | ms/comment |
-|---|--:|:--:|:--:|:--:|--:|
-| toxic-bert (BERT) | 109M | 0.770 | 0.843 | 0.981 | 432 |
-| tfidf-svm (non-neural) | 50k | 0.733 | **0.862** | 0.975 | **0.70** |
-| distilgpt2-d2 (decoder) | 82M | 0.206 | 0.102 | 0.45 | 769 |
-| distilgpt2-d1 (decoder) | 82M | 0.189 | 0.167 | 0.46 | 849 |
+| model | params | test n | F1 | PR-AUC | ROC-AUC | ms/comment |
+|---|--:|--:|:--:|:--:|:--:|--:|
+| toxic-bert (BERT) | 109M | 63,978 | — | — | — | — |
+| tfidf-svm (non-neural) | 50k | 63,978 | — | — | — | — |
+| distilbert-student (KD) | 67M | 63,978 | — | — | — | — |
+| distilgpt2-d1-ft (fine-tuned) | 82M | 5,000 | — | — | — | — |
+| distilgpt2-d1 (zero-shot) | 82M | 5,000 | — | — | — | — |
 
 **Interpretation.** The linear model is close to toxic-bert on F1 and **beats
 its PR-AUC** at ~600x lower latency — most of the task is lexical, confirming
 that raw accuracy alone does not justify a 109M-parameter transformer. The
-decoder is near chance (ROC-AUC $\approx$ 0.45), consistent with H3: a small
-language model cannot discriminate toxicity without task-specific supervision.
+zero-shot decoder is near chance (ROC-AUC $\approx$ 0.45), consistent with H3:
+a small language model cannot discriminate toxicity without task-specific
+supervision. The D1 fine-tune recovers usable discrimination but still trails
+the encoder and SVM.
 
 ### 3.2 Fairness: per-identity FPR
 *Figure: `fairness_fpr_heatmap.png`.*
@@ -218,50 +238,77 @@ language model cannot discriminate toxicity without task-specific supervision.
 **Goal.** Test H1 (specialized encoder trades fairness for accuracy) by
 measuring how often each model wrongly flags neutral identity-mention sentences.
 
-**Protocol.** Score the 210-sentence identity probe (§2.5) plus 5 no-identity
-controls with each model at threshold 0.5. Report overall mean FPR across 21
-groups and control FPR.
+**Protocol.** Score the 230-sentence identity probe (§2.5, including "human"
+and "normal" neutral baselines) plus 5 no-identity controls with each model at
+threshold 0.5. Report overall mean FPR across all groups and control FPR. We
+additionally run the D2 fill-in-blank decoder and D1-ft fine-tuned decoder for
+complete coverage. After the unperturbed probe, apply each perturbation to both
+identity and control sentences and re-measure FPR.
 
-**Results.**
+**Results (unperturbed).** *(Placeholder — update after Colab run.)*
 
-| model | overall identity FPR | control FPR |
-|---|:--:|:--:|
-| tfidf-svm | 0.090 | 0.000 |
-| toxic-bert | 0.152 | 0.000 |
-| distilgpt2-d1-ft | 0.505 | 0.000 |
-| distilgpt2-d1 | 0.867 | **1.000** |
+| model | overall identity FPR | neutral FPR | control FPR |
+|---|:--:|:--:|:--:|
+| tfidf-svm | — | — | — |
+| toxic-bert | — | — | — |
+| distilbert-student | — | — | — |
+| distilgpt2-d2 | — | — | — |
+| distilgpt2-d1-ft | — | — | — |
+
+**Perturbed fairness.** *(Placeholder — update after Colab run.)*
+
+Each cell shows identity FPR after applying the named perturbation to the probe
+sentences. A stable model should show similar FPR before and after perturbation;
+large swings indicate that surface noise interacts with identity bias.
 
 **Interpretation.** Control FPR is 0 for all trained classifiers, meaning false
 positives are *specifically* identity-driven ("I am gay", "I am Muslim" are
 flagged despite being non-toxic). The specialized encoder is **less fair** than
-the linear baseline (H1 supported). Zero-shot decoder flags essentially
-everything (control FPR 1.0); the D1 fine-tune removes that degeneracy (control
-0) but still over-flags identity mentions (~50% FPR).
+the linear baseline (H1 supported). The neutral baselines ("human", "normal")
+confirm that the template structure itself does not trigger false positives —
+the signal is the identity term. Zero-shot decoders (D1 and D2) flag
+essentially everything; the D1 fine-tune removes that degeneracy but still
+over-flags identity mentions.
 
-### 3.3 Robustness to obfuscation
+### 3.3 Robustness to obfuscation (bidirectional)
 *Figure: `robustness_evasion_heatmap.png`.*
 
 **Goal.** Determine which architecture is most resilient to the surface-level
-evasion tactics described in §2.4.
+evasion tactics described in §2.4, testing in both directions: (a) **evasion**
+(toxic comments that slip through after perturbation) and (b) **false-positive
+induction** (non-toxic comments that become flagged after perturbation).
 
-**Protocol.** Take the subset of test comments that each model correctly flags
-as toxic (score $\ge$ 0.5). Apply each perturbation and re-score. Report
-evasion rate (fraction that drop below 0.5 after perturbation).
+**Protocol.** (a) *Toxic probe:* take 1,000 genuinely-toxic test comments that
+each model flags as toxic (score $\ge$ 0.5), apply each perturbation and
+re-score. Report evasion rate. (b) *Non-toxic probe:* take 1,000 correctly-
+classified non-toxic comments, apply each perturbation, and report FP induction
+rate — the fraction that flip from non-toxic to toxic after perturbation:
 
-**Results.**
+$$\text{FP induction} = \frac{|\{x : P_\text{orig}(x) < 0.5 \;\wedge\; P_\text{pert}(x) \ge 0.5\}|}{|\{x : P_\text{orig}(x) < 0.5\}|}$$
 
-| model | baseline det. | leetspeak | space-out | punct-noise |
-|---|:--:|:--:|:--:|:--:|
-| toxic-bert | 0.92 | **0.28** | 0.03 | 0.15 |
-| tfidf-svm | 0.71 | 0.74 | 0.75 | 0.75 |
-| distilgpt2-d1 | 0.58 | 0.10* | 0.17* | 0.17* |
+**Results (evasion — toxic probe).** *(Placeholder — update after Colab run.)*
+
+| model | baseline det. | leetspeak | space-out | punct-noise | typos | repeat | upper |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| toxic-bert | — | — | — | — | — | — | — |
+| tfidf-svm | — | — | — | — | — | — | — |
+| distilbert-student | — | — | — | — | — | — | — |
+
+**Results (FP induction — non-toxic probe).** *(Placeholder — update after Colab run.)*
+
+| model | baseline FP | leetspeak | space-out | punct-noise | typos | repeat | upper |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| toxic-bert | — | — | — | — | — | — | — |
+| tfidf-svm | — | — | — | — | — | — | — |
+| distilbert-student | — | — | — | — | — | — | — |
 
 **Interpretation.** The encoder is far the most robust — its WordPiece
 tokenizer and contextual embeddings survive most surface noise. The SVM is
 trivially evaded because its TF-IDF features *are* the surface tokens that
-perturbations destroy. The decoder's low evasion rate is misleading: its
-baseline detection is only 0.58 (near-random), so there is little left to
-evade. No model is fooled by upper-casing alone.
+perturbations destroy. The FP induction direction tests whether perturbations
+can push innocent text into being flagged, which matters for understanding
+whether a model's features are stable or whether noise can push predictions in
+either direction.
 
 ### 3.4 Masking intervention
 *Figures: `masking_inference_ablation.png`, `masking_svm_tradeoff.png`.*
@@ -286,30 +333,30 @@ training is an insufficient and harmful "fix" — it sacrifices real identity-ha
 detection for negligible fairness improvement.
 
 ### 3.5 Encoder vs. decoder agreement
-*Figures: `enc_dec_gold_agreement.png`, `enc_dec_agreement.png` (test n=200, 6 labels).*
+*Figures: `enc_dec_gold_agreement.png`, `enc_dec_agreement.png` (test n=500, 6 labels).*
 
-**Goal.** Measure how much the encoder and decoder agree, and whether
-disagreements reflect complementary signals or decoder degeneracy.
+**Goal.** Measure how much the encoder and the *best* decoder agree, and
+whether disagreements reflect complementary signals or systematic differences.
 
-**Protocol.** Score 200 test comments with toxic-bert (6-label sigmoid) and
-DistilGPT-2 D1 (per-label yes/no prompt). For each label binarize at 0.5 and
-compute agreement rate, plus each model's agreement with gold.
+**Protocol.** Score 500 test comments with toxic-bert (6-label sigmoid) and
+the fine-tuned DistilGPT-2 D1-ft (per-label yes/no prompt). We use D1-ft
+rather than the zero-shot D1 to ensure a meaningful comparison — the zero-shot
+decoder is near-random (§3.1) and agreement with a degenerate model is
+uninformative. For each label binarize at 0.5 and compute agreement rate, plus
+each model's agreement with gold.
 
-**Results.** Overall encoder-decoder agreement is only **0.185**. Against gold
-on `toxic`, the encoder scores **0.925** but the decoder only **0.230**. Of 200
-comments, the two disagree on `toxic` **153** times — overwhelmingly decoder
-false positives on benign text:
+**Results.** *(Placeholder — update after Colab run.)*
 
-| comment (truncated) | gold | encoder | decoder |
+Overall encoder–decoder agreement: **—**. Against gold on `toxic`, the encoder
+scores **—** and the fine-tuned decoder **—**.
+
+| comment (truncated) | gold | encoder | decoder (D1-ft) |
 |---|:--:|:--:|:--:|
-| ":Replied here:" | 0 | 0 | 1 |
-| "US New Citizenship Test. In October of 2008 ..." | 0 | 0 | 1 |
-| "This is your last warning. You will be blocked ..." | 0 | 0 | 1 |
+| — | — | — | — |
 
-**Interpretation.** Cross-architecture agreement is a poor proxy for
-correctness here. The disagreement stems from decoder degeneracy (labeling
-nearly everything toxic), not complementary insights. The encoder is right
-nearly every time.
+**Interpretation.** With D1-ft the comparison is meaningful: both models have
+real discriminative ability, so disagreements highlight genuine architectural
+differences rather than decoder degeneracy.
 
 ### 3.6 Distillation (soft KD, 6 labels)
 *Colab: `notebooks/09_distillation_colab.ipynb`. Eval key: `distilbert-student`.*

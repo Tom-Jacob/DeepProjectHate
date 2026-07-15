@@ -37,6 +37,8 @@ IDENTITY_GROUPS: Dict[str, str] = {
     "disabled": "disability",
     "deaf": "disability",
     "blind": "disability",
+    "human": "neutral",
+    "normal": "neutral",
 }
 
 # Neutral carrier sentences. "{g}" is the identity term slot.
