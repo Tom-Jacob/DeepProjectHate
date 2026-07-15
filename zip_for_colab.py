@@ -1,7 +1,10 @@
-"""Create a minimal zip for Colab upload — code only, no models or raw data.
+"""Create a minimal zip for Colab upload.
 
-Models and raw data are downloaded on Colab directly (much faster than uploading).
-Output: DeepProjectHate_colab.zip (~5 MB)
+Includes code + custom-trained models (distilbert-student, distilgpt2-d1-ft).
+HuggingFace models (toxic-bert, distilgpt2) and raw Jigsaw data are downloaded
+on Colab via the existing download scripts — much faster than uploading.
+
+Output: DeepProjectHate_colab.zip (~250 MB, down from ~1.4 GB)
 """
 import zipfile
 from pathlib import Path
@@ -9,7 +12,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "DeepProjectHate_colab.zip"
 
-INCLUDE_DIRS = ["src", "scripts", "notebooks", "data/processed", "report/figures"]
+INCLUDE_DIRS = [
+    "src",
+    "scripts",
+    "notebooks",
+    "data/processed",
+    "report/figures",
+    "models/distilbert-student",
+    "models/distilgpt2-d1-ft",
+]
 INCLUDE_FILES = [
     "README.md",
     "CLAUDE.md",
