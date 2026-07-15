@@ -193,16 +193,19 @@ character-level robustness; upper-case tests case normalization.
 
 ### 2.5 Fairness probe
 
-Following Dixon et al. (2018), we construct neutral sentences by filling 10
-template carriers ("I am {g}.", "My friend is {g}.", etc.) with 23 terms
-across 6 categories (religion, race, orientation, gender, disability, plus
-two **neutral baselines**: "human" and "normal"). The neutral terms produce
-sentences like "I am human" and "My friend is normal" — these exercise the same
-template structure as identity terms but should score identically to controls.
-This gives 230 probe sentences total. By construction none is toxic, so any
-positive prediction is a false positive. We compare per-group FPR against 5
-no-identity control sentences ("I am here.", "My friend is nice.") to verify
-that the bias is identity-driven, not template-driven.
+Following Dixon et al. (2018), we construct neutral sentences by filling
+template carriers with 23 identity terms across 6 categories (religion, race,
+orientation, gender, disability, plus two **neutral baselines**: "human" and
+"normal"). To ensure the probe covers a realistic range of comment lengths we
+use three tiers of templates: **10 short** one-liners ("I am {g}.", "My friend
+is {g}.", ~5 words), **3 medium** forum-comment-length paragraphs (~50 words),
+and **3 long** Wikipedia-talk-page-style discussions (~140 words). The medium
+and long templates are styled after real Jigsaw-source comments — collaborative
+editing discussions that mention an identity term in a clearly non-toxic
+context. This gives 16 templates × 23 groups = **368 probe sentences** total.
+By construction none is toxic, so any positive prediction is a false positive.
+We compare per-group FPR against 8 length-matched no-identity control sentences
+to verify that the bias is identity-driven, not template- or length-driven.
 
 **Perturbation-augmented fairness probes.** We additionally apply each of the 6
 perturbations (§2.4) to both the identity probe sentences and the control
@@ -268,8 +271,8 @@ the encoder and SVM.
 **Goal.** Test H1 (specialized encoder trades fairness for accuracy) by
 measuring how often each model wrongly flags neutral identity-mention sentences.
 
-**Protocol.** Score the 230-sentence identity probe (§2.5, including "human"
-and "normal" neutral baselines) plus 5 no-identity controls with each model at
+**Protocol.** Score the 368-sentence identity probe (§2.5, including "human"
+and "normal" neutral baselines) plus 8 no-identity controls with each model at
 threshold 0.5. Report overall mean FPR across all groups and control FPR. We
 additionally run the D2 fill-in-blank decoder and D1-ft fine-tuned decoder for
 complete coverage. After the unperturbed probe, apply each perturbation to both
@@ -487,7 +490,7 @@ training objective.
 
 $$\mathcal{L} = \text{BCE}(\text{task batch}) + \gamma \cdot \frac{1}{|P|}\sum_{x \in P} \sigma\bigl(f(x)_\text{toxic}\bigr)$$
 
-where $P$ is the 230-sentence identity probe set (§2.5) and $\sigma$ is the
+where $P$ is the 368-sentence identity probe set (§2.5) and $\sigma$ is the
 sigmoid. The BCE term preserves accuracy on the main Jigsaw task; the FPR
 penalty pushes the model to score identity-probe sentences as non-toxic. We
 sweep $\gamma \in \{0.1, 0.5, 1.0, 2.0\}$ with 2 epochs, 20k train examples,
