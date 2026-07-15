@@ -33,6 +33,7 @@ MAX_LENGTH = 256
 class DistillConfig:
     temperature: float = 2.0
     alpha: float = 0.7  # weight on KD vs hard BCE
+    beta: float = 0.0   # weight on soft-F1 regularization (0 = off)
     lr: float = 2e-5
     weight_decay: float = 0.01
     epochs: int = 2
@@ -79,14 +80,33 @@ class CommentLabelDataset(Dataset):
         return item
 
 
+def soft_f1_loss(
+    student_logits: torch.Tensor,
+    hard_labels: torch.Tensor,
+) -> torch.Tensor:
+    """Differentiable macro F1 loss: 1 - mean(soft_F1 per label).
+
+    Uses sigmoid probabilities as soft predictions so the loss is smooth and
+    back-propagable, unlike the hard-threshold F1 metric.
+    """
+    eps = 1e-7
+    probs = torch.sigmoid(student_logits)
+    tp = (hard_labels * probs).sum(dim=0)
+    fp = ((1.0 - hard_labels) * probs).sum(dim=0)
+    fn = (hard_labels * (1.0 - probs)).sum(dim=0)
+    soft_f1 = (2.0 * tp) / (2.0 * tp + fp + fn + eps)
+    return 1.0 - soft_f1.mean()
+
+
 def kd_bce_loss(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
     hard_labels: torch.Tensor,
     temperature: float,
     alpha: float,
+    beta: float = 0.0,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
-    """Soft KD (sigmoid KL at temperature T) + hard multilabel BCE."""
+    """Soft KD (sigmoid KL at temperature T) + hard multilabel BCE + optional soft-F1."""
     t = temperature
     student_soft = torch.sigmoid(student_logits / t)
     teacher_soft = torch.sigmoid(teacher_logits / t).detach()
@@ -100,11 +120,16 @@ def kd_bce_loss(
     kd = kd * (t * t)
     hard = F.binary_cross_entropy_with_logits(student_logits, hard_labels)
     loss = alpha * kd + (1.0 - alpha) * hard
-    return loss, {
+    parts = {
         "kd": float(kd.detach()),
         "hard": float(hard.detach()),
-        "loss": float(loss.detach()),
     }
+    if beta > 0:
+        f1_reg = soft_f1_loss(student_logits, hard_labels)
+        loss = loss + beta * f1_reg
+        parts["f1_reg"] = float(f1_reg.detach())
+    parts["loss"] = float(loss.detach())
+    return loss, parts
 
 
 def build_student(student_init: str = STUDENT_INIT_ID, num_labels: int = 6):
@@ -278,20 +303,22 @@ def train_distill(
     best_macro = -1.0
     for epoch in range(cfg.epochs):
         student.train()
-        running = {"kd": 0.0, "hard": 0.0, "loss": 0.0, "n": 0}
+        tracked = ["kd", "hard", "loss"] + (["f1_reg"] if cfg.beta > 0 else [])
+        running = {k: 0.0 for k in tracked}
+        running["n"] = 0
         for s_enc, t_logits, hard in train_iter:
             opt.zero_grad()
             s_logits = student(**s_enc).logits
-            loss, parts = kd_bce_loss(s_logits, t_logits, hard, cfg.temperature, cfg.alpha)
+            loss, parts = kd_bce_loss(s_logits, t_logits, hard, cfg.temperature, cfg.alpha, cfg.beta)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(student.parameters(), 1.0)
             opt.step()
             sched.step()
-            for k in ("kd", "hard", "loss"):
-                running[k] += parts[k]
+            for k in tracked:
+                running[k] += parts.get(k, 0.0)
             running["n"] += 1
         n = max(running["n"], 1)
-        train_stats = {k: running[k] / n for k in ("kd", "hard", "loss")}
+        train_stats = {k: running[k] / n for k in tracked}
         val_metrics = evaluate_student(student, val_loader, device)
         row = {"epoch": epoch + 1, **train_stats, **val_metrics}
         history.append(row)

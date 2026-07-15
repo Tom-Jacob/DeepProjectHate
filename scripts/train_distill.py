@@ -32,6 +32,8 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--temperature", type=float, default=2.0)
     parser.add_argument("--alpha", type=float, default=0.7)
+    parser.add_argument("--beta", type=float, default=0.0,
+                        help="Weight on soft-F1 regularization (0 = off)")
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-val-samples", type=int, default=None)
     parser.add_argument("--output-dir", type=str, default=str(LOCAL_DISTILBERT_STUDENT_DIR))
@@ -50,6 +52,7 @@ def main() -> None:
         lr=args.lr,
         temperature=args.temperature,
         alpha=args.alpha,
+        beta=args.beta,
         max_train_samples=args.max_train_samples,
         max_val_samples=args.max_val_samples,
         output_dir=args.output_dir,

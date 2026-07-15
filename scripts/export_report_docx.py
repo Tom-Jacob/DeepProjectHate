@@ -19,6 +19,7 @@ FIG_MAP = {
     "masking_svm_tradeoff.png": "Figure: SVM masking fairness/recall trade-off",
     "enc_dec_agreement.png": "Figure: encoder–decoder agreement",
     "enc_dec_gold_agreement.png": "Figure: encoder/decoder vs gold agreement",
+    "soft_f1_comparison.png": "Figure: soft-F1 regularization comparison",
 }
 
 
@@ -122,6 +123,37 @@ def main() -> None:
         if raw.startswith("- ") or raw.startswith("* "):
             doc.add_paragraph(raw[2:].replace("**", "").replace("`", ""), style="List Bullet")
             i += 1
+            continue
+
+        # Numbered list items (e.g. "1. **The SVM ...**")
+        if len(raw) >= 3 and raw[0].isdigit() and raw[1] == "." and raw[2] == " ":
+            doc.add_paragraph(raw[3:].replace("**", "").replace("`", ""), style="List Number")
+            i += 1
+            continue
+
+        # Display math blocks ($$...$$) — render as indented plain text
+        if raw.strip() == "$$" or raw.strip().startswith("$$"):
+            math_lines = []
+            if raw.strip() != "$$":
+                math_lines.append(raw.strip().lstrip("$").rstrip("$"))
+            i += 1
+            while i < len(lines):
+                ml = lines[i].rstrip()
+                if ml.strip().endswith("$$"):
+                    tail = ml.strip().rstrip("$")
+                    if tail:
+                        math_lines.append(tail)
+                    i += 1
+                    break
+                math_lines.append(ml)
+                i += 1
+            formula = " ".join(l.strip() for l in math_lines if l.strip())
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Cm(1)
+            run = p.add_run(formula)
+            run.font.name = "Cambria Math"
+            run.font.size = Pt(10)
+            run.italic = True
             continue
 
         if not raw:

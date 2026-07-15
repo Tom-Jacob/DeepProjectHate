@@ -100,6 +100,7 @@ Add the decoder or student: `--models toxic-bert tfidf-svm distilgpt2-d1 distilg
 | 11 | **SVM rigorous audit** — metrics, ablations, fairness, robustness, masking |
 | 12 | **Encoder rigorous audit** — toxic-bert · distilbert-tox · distilbert-student |
 | 13 | **Decoder rigorous audit** — distilgpt2-d1 · d2 · d1-ft (skips FT if missing) |
+| 14 | **Soft-F1 distillation** — beta=0.3/0.5 vs baseline; accuracy + fairness |
 | `archive/03–08` | Superseded exploration/audit wrappers (reference only) |
 
 Roster in 03–04: `toxic-bert`, `tfidf-svm`, `distilgpt2-d1`, `distilgpt2-d1-ft`, `distilbert-student` (skips missing weights with a clear message). Prefer cached `data/processed/*.json`; optional `LIVE_RERUN` for a small live pass.
