@@ -456,6 +456,46 @@ deploy an off-the-shelf LM without task adaptation"* — a practically important
 scenario — while the D1-ft result answers the architectural question more
 directly.
 
+### 3.9 FPR-regularized fine-tuning
+*Colab: `notebooks/16_fpr_finetuning.ipynb`. Figure: `fpr_finetune_tradeoff.png`.*
+
+**Goal.** Reduce identity-probe FPR without destroying accuracy, using an
+explicit loss penalty rather than naive data masking.
+
+**Motivation.** The masking experiment (§3.4) showed that identity bias is a
+lexical shortcut: removing the identity token at inference zeroes FPR, but
+removing it at training time *hurts* recall (0.78 → 0.68) with negligible
+fairness gain. We need a smarter approach that targets FPR directly in the
+training objective.
+
+**Method.** Start from the trained distilbert-student (§3.6) and run a
+**second-stage fine-tune** with a combined loss:
+
+$$\mathcal{L} = \text{BCE}(\text{task batch}) + \gamma \cdot \frac{1}{|P|}\sum_{x \in P} \sigma\bigl(f(x)_\text{toxic}\bigr)$$
+
+where $P$ is the 230-sentence identity probe set (§2.5) and $\sigma$ is the
+sigmoid. The BCE term preserves accuracy on the main Jigsaw task; the FPR
+penalty pushes the model to score identity-probe sentences as non-toxic. We
+sweep $\gamma \in \{0.1, 0.5, 1.0, 2.0\}$ with 2 epochs, 20k train examples,
+and lr = 1e-5.
+
+**Results.** *(Placeholder — update after Colab run.)*
+
+| variant | Test F1 (toxic) | Identity FPR | IH recall |
+|---|:--:|:--:|:--:|
+| baseline (γ=0) | — | — | — |
+| γ=0.1 | — | — | — |
+| γ=0.5 | — | — | — |
+| γ=1.0 | — | — | — |
+| γ=2.0 | — | — | — |
+
+**Interpretation.** *(Pending results.)* The hypothesis is that a moderate γ
+can push FPR toward zero while keeping F1 within ±0.01 of baseline — a much
+better tradeoff than naive masking, which sacrifices recall for negligible
+fairness improvement. If confirmed, FPR-regularized fine-tuning offers a
+practical debiasing recipe: train normally, then run a short second stage with
+the probe set in the loss.
+
 ## 4. Conclusions and future work
 
 1. **Toxicity detection is mostly lexical** — a 50k-feature linear model rivals a
@@ -472,10 +512,13 @@ directly.
    (0.772 vs 0.770) at lower latency and **lower** identity FPR (0.062 vs 0.152)
    on our probe — compression need not amplify bias (**H2** partially rejected).
 
-**Future work.** Soft-F1 regularization during distillation to directly optimize
-the evaluation metric; calibration analysis (ECE, reliability diagrams); larger
-evaluation samples for tighter confidence intervals; hateBERT cross-domain
-probe; neural masked fine-tune of DistilBERT as a debiasing intervention.
+6. **FPR-regularized fine-tuning (§3.9):** a second-stage loss penalty on the
+   identity probe directly targets the bias mechanism identified by the masking
+   experiment, offering a more principled fix than naive token removal.
+
+**Future work.** Calibration analysis (ECE, reliability diagrams); hateBERT
+cross-domain probe; extending FPR regularization to the encoder itself;
+fairness-constrained optimization with per-group FPR targets.
 
 ## 5. References
 - Jigsaw/Conversation AI. Toxic Comment Classification Challenge. Kaggle, 2018.
