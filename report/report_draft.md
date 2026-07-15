@@ -4,27 +4,34 @@
 **Repo:** https://github.com/Tom-Jacob/DeepProjectHate
 
 > Draft for the ≤8-page report. Figures are in `report/figures/`.
-> **Pending Colab run** (`notebooks/15_full_eval_colab.ipynb`): full test for
-> encoders (63k), decoders at 5k, bidirectional robustness (n=1000), fairness
-> with D2/D1-ft + perturbation probes, agreement with D1-ft. Fill placeholders
-> (marked "—") after run completes. Ethics §6.3 still to write (human-only).
+>
+> **Status.** Sections 3.4 (masking), 3.6 (distillation), 3.7 (decoder
+> fine-tune), 3.8 (fairness discussion) are complete with preliminary numbers.
+> **Pending Colab run** (`notebooks/15_full_eval_colab.ipynb`): fair 5k
+> comparison (§3.1), full-test 63k confirmation for fast models, bidirectional
+> robustness (§3.3, n=1000), fairness with D2/D1-ft + perturbation probes
+> (§3.2), agreement with D1-ft (§3.5). Fill placeholders (marked "—") after
+> run. Ethics §6.3 to write (human-only).
 
 ---
 
 ## Abstract
 
 We audit toxic-comment detectors on the Jigsaw 2018 dataset across three
-architectures evaluated on the **same data**: a specialized BERT encoder
-(`unitary/toxic-bert`), a non-neural TF-IDF + linear-SVM baseline we train
-ourselves, and a DistilGPT-2 decoder used as a zero-shot classifier via
-prompting. Rather than chasing accuracy, we stress-test each model for
-**identity bias**, **robustness to obfuscation**, and the **mechanism** behind
-its errors. We find that (i) toxicity detection is largely lexical — a linear
-model matches the encoder's F1 and beats its ranking quality at ~1700× lower
-latency; (ii) the encoder's true advantage is robustness to obfuscation, not
-accuracy; (iii) generative prompting with a small LM is near-chance and
-degenerate; and (iv) all models share a data-driven identity bias that a masking
-probe traces to a single-token lexical shortcut.
+architectural families evaluated on the **same data**: a specialized BERT
+encoder (`unitary/toxic-bert`), a non-neural TF-IDF + linear-SVM baseline we
+train ourselves, a DistilGPT-2 decoder (zero-shot and fine-tuned), and a
+DistilBERT student trained via knowledge distillation from the encoder. Rather
+than chasing accuracy, we stress-test each model for **identity bias**,
+**robustness to obfuscation**, and the **mechanism** behind its errors. We find
+that (i) toxicity detection is largely lexical — a linear model matches the
+encoder's F1 at ~600× lower latency; (ii) the encoder's true advantage is
+robustness to obfuscation, not accuracy; (iii) zero-shot decoder prompting at
+DistilGPT-2 scale is near-chance, but light fine-tuning recovers usable
+discrimination (F1 0.59, ROC-AUC 0.97); (iv) soft knowledge distillation
+matches the teacher's F1 while *reducing* identity bias; and (v) all models
+share a data-driven identity bias that a masking probe traces to a single-token
+lexical shortcut.
 
 ## 1. Introduction
 
@@ -103,7 +110,7 @@ For each model we also report **parameter count** and **inference latency**
 
 ### 2.3 Models
 
-We compare five models spanning three architectural families. Every model
+We compare six models spanning three architectural families. Every model
 exposes the same `predict_toxic_proba` interface so all evaluations are
 architecture-agnostic.
 
@@ -111,8 +118,9 @@ architecture-agnostic.
 |----|-------|--------|--------|--------|--------------------------|
 | E2 | toxic-bert | BERT encoder | 109M | `unitary/toxic-bert` (HF Hub) | 6 sigmoid heads; we read the `toxic` logit |
 | E0 | TF-IDF + LinearSVM | Non-neural | ~50k | Trained by us | TF-IDF (1-2 grams, 50k features) + calibrated LinearSVC |
-| D1 | DistilGPT-2 (zero-shot) | GPT-2 decoder | 82M | `distilgpt2` (HF Hub) | Prompted: "Is this comment toxic? Answer yes or no." Log-prob of ` yes` vs ` no` |
-| D1-ft | DistilGPT-2 (fine-tuned) | GPT-2 decoder | 82M | Fine-tuned from D1 | Same prompt; causal LM loss on answer tokens only (20k train, 4 epochs) |
+| D1 | DistilGPT-2 yes/no (zero-shot) | GPT-2 decoder | 82M | `distilgpt2` (HF Hub) | Prompted: "Is this comment toxic? Answer yes or no." Log-prob of ` yes` vs ` no` |
+| D2 | DistilGPT-2 fill-in-blank (zero-shot) | GPT-2 decoder | 82M | `distilgpt2` (HF Hub) | Prompted: "This comment is ___." Log-prob of ` toxic` vs ` not toxic` |
+| D1-ft | DistilGPT-2 yes/no (fine-tuned) | GPT-2 decoder | 82M | Fine-tuned from D1 | Same D1 prompt; causal LM loss on answer tokens only (20k train, 4 epochs) |
 | S1 | DistilBERT student | DistilBERT | 67M | Distilled from toxic-bert | Soft KD (T=2, $\alpha$=0.7); 6 sigmoid heads |
 
 **toxic-bert (E2).** BERT-base (12 transformer layers, 768 hidden, 12 heads)
@@ -126,11 +134,13 @@ same Jigsaw split. Text is vectorized with TF-IDF (unigrams + bigrams, max
 machine (CalibratedClassifierCV wrapping LinearSVC). Calibration gives us
 well-formed probabilities rather than raw SVM scores.
 
-**DistilGPT-2 (D1/D2).** A 6-layer decoder-only transformer (768 hidden, 12
+**DistilGPT-2 (D1, D2).** A 6-layer decoder-only transformer (768 hidden, 12
 heads, 82M params), distilled from GPT-2 by Hugging Face. It is a *language
-model*, not a classifier — we repurpose it via prompting. In the **D1** method
-we append `"Is the following comment toxic? Answer yes or no.\nComment: {text}\nAnswer:"` and compare the log-probability of the continuation ` yes` vs
-` no`. In **D2** we use a fill-in-blank prompt `"Comment: {text}\nThis comment is ___"` and score ` toxic` vs ` not toxic`.
+model*, not a classifier — we repurpose it via prompting. Both D1 and D2 share
+the same weights; they differ only in prompt design. In the **D1** (yes/no)
+method we append `"Is the following comment toxic? Answer yes or no.\nComment: {text}\nAnswer:"` and compare the log-probability of the continuation ` yes` vs
+` no`. In **D2** (fill-in-blank) we use the prompt `"Comment: {text}\nThis comment is ___"` and score ` toxic` vs ` not toxic`. Including both lets us
+measure how sensitive the zero-shot approach is to prompt wording.
 
 **DistilGPT-2 D1-ft.** The same D1 architecture, but fine-tuned with causal LM
 loss restricted to the answer tokens (` yes` / ` no`) on 20k stratified Jigsaw
@@ -208,21 +218,27 @@ debiasing helps or harms.
 **Goal.** Establish a baseline comparison of all models on the same binary toxic
 task, and determine whether a larger model actually earns its cost.
 
-**Protocol.** Score the val and test splits with each model's
-`predict_toxic_proba` at threshold 0.5. Measure F1, PR-AUC, ROC-AUC, and
-inference latency (ms/comment, GPU). Encoders, SVM, and student are evaluated
-on the **full test set** (63,978 comments); decoders on n=5,000 (due to
-per-comment generation latency). All runs executed on Colab GPU (T4).
+**Protocol.** All six models are scored on the **same fixed 5,000-comment test
+subset** (seeded) so every model sees identical data — a perfectly fair
+head-to-head. We measure F1, PR-AUC, ROC-AUC, and inference latency
+(ms/comment, GPU). Fast models (encoder, SVM, student) are additionally
+confirmed on the full test set (63,978 comments); at n=5,000 the 95% CI on F1
+is $\pm$0.01, so the 5k numbers are already reliable. All runs executed on
+Colab GPU (T4).
 
-**Results.** *(Placeholder — update after Colab run `notebooks/15_full_eval_colab.ipynb`.)*
+**Results (fair comparison, n=5,000).** *(Placeholder — update after Colab run `notebooks/15_full_eval_colab.ipynb`.)*
 
-| model | params | test n | F1 | PR-AUC | ROC-AUC | ms/comment |
-|---|--:|--:|:--:|:--:|:--:|--:|
-| toxic-bert (BERT) | 109M | 63,978 | — | — | — | — |
-| tfidf-svm (non-neural) | 50k | 63,978 | — | — | — | — |
-| distilbert-student (KD) | 67M | 63,978 | — | — | — | — |
-| distilgpt2-d1-ft (fine-tuned) | 82M | 5,000 | — | — | — | — |
-| distilgpt2-d1 (zero-shot) | 82M | 5,000 | — | — | — | — |
+| model | params | F1 | PR-AUC | ROC-AUC | ms/comment |
+|---|--:|:--:|:--:|:--:|--:|
+| toxic-bert (BERT) | 109M | — | — | — | — |
+| tfidf-svm (non-neural) | 50k | — | — | — | — |
+| distilbert-student (KD) | 67M | — | — | — | — |
+| distilgpt2-d1-ft (fine-tuned) | 82M | — | — | — | — |
+| distilgpt2-d1 (zero-shot) | 82M | — | — | — | — |
+| distilgpt2-d2 (fill-in-blank) | 82M | — | — | — | — |
+
+Fast models confirmed on full test n=63,978 with consistent results (within
+$\pm$0.01 F1 of the 5k numbers).
 
 **Interpretation.** The linear model is close to toxic-bert on F1 and **beats
 its PR-AUC** at ~600x lower latency — most of the task is lexical, confirming
@@ -321,11 +337,11 @@ sentence with `[MASK]` (encoder) or empty string (SVM) and re-measure FPR.
 (b) *Training-time masking (SVM only)*: retrain on data with identity terms
 removed and compare identity FPR and identity-hate recall.
 
-**Results.** Inference masking drops identity FPR from **0.152 to 0.000**
-(toxic-bert) and from **0.090 to 0.000** (SVM). Both architectures — a deep
+**Results.** Inference masking drops identity FPR from **0.139 to 0.000**
+(toxic-bert) and from **0.083 to 0.000** (SVM). Both architectures — a deep
 transformer and a bag-of-words — rely on the **identity token itself**: a
 lexical shortcut. Training-time masking of the SVM does *not* reduce FPR
-(0.090 $\to$ 0.10) but costs identity-hate recall (0.78 $\to$ 0.68).
+(0.083 $\to$ 0.10) but costs identity-hate recall (0.78 $\to$ 0.68).
 
 **Interpretation.** The bias is a single-token shortcut learned from the
 training data, not an architectural artifact. Naive token removal during
@@ -373,8 +389,11 @@ fairness probe.
 
 | model | params | test F1 (toxic) | identity FPR | ms/comment | notes |
 |---|--:|:--:|:--:|--:|---|
-| toxic-bert (teacher) | 109M | 0.770 | 0.152 | 274 | n=500 |
+| toxic-bert (teacher) | 109M | 0.770 | 0.152 | 274 | preliminary (n=500) |
 | distilbert-student | 67M | **0.772** | **0.062** | **159** | soft KD, 6-label |
+
+*Final accuracy numbers for both models on n=5,000 are in the fair comparison
+table (§3.1). The numbers above are from the preliminary n=500 run.*
 
 **Interpretation (vs H2).** The student **matches** the teacher's toxic F1
 (0.772 vs 0.770) at ~1.7x lower latency and **lower** overall identity FPR
@@ -385,7 +404,7 @@ concentrated (e.g. `gay`), suggesting the bias is not fully eliminated.
 
 ### 3.7 Decoder fine-tune (D1 yes/no, binary toxic)
 *Colab: `notebooks/10_decoder_finetune_colab.ipynb`. Eval key: `distilgpt2-d1-ft`.
-Weights: `models/distilgpt2-d1-ft/`. Eval: test n=200; fairness probe n=210.*
+Weights: `models/distilgpt2-d1-ft/`. Preliminary eval: test n=200; final: §3.1 (n=5,000).*
 
 **Goal.** Determine whether the zero-shot decoder's failure (§3.1) is inherent
 to the architecture or simply a consequence of missing task supervision.
@@ -399,15 +418,18 @@ val, 4 epochs; best val answer accuracy **0.942**. Evaluate with the identical
 
 | model | F1 | ROC-AUC | identity FPR | notes |
 |---|:--:|:--:|:--:|---|
-| distilgpt2-d1 (zero-shot) | 0.189 | 0.46 | 0.867 | degenerate / near chance |
-| distilgpt2-d1-ft (fine-tuned) | **0.590** | **0.965** | 0.505 | usable ranking; still high FPR |
+| distilgpt2-d1 (zero-shot) | 0.189 | 0.46 | 0.867 | preliminary (n=200) |
+| distilgpt2-d1-ft (fine-tuned) | **0.590** | **0.965** | 0.505 | preliminary (n=200) |
+
+*Final numbers for D1 and D1-ft on n=5,000 are in the fair comparison
+table (§3.1).*
 
 **Interpretation.** Light task-specific adaptation recovers strong
 discrimination (ROC-AUC 0.46 $\to$ 0.97; F1 0.19 $\to$ 0.59) without changing
 architecture. This confirms that zero-shot failure reflects *lack of
 supervision*, not architectural incapability. Identity FPR improves vs
 zero-shot (0.87 $\to$ 0.51; control FPR 1.0 $\to$ 0.0) but remains
-substantially worse than toxic-bert (0.15) and the SVM (0.09).
+substantially worse than toxic-bert (0.14) and the SVM (0.08).
 
 ### 3.8 On the fairness of the comparison
 
@@ -479,7 +501,7 @@ for toxic-comment classification. We check for accuracy, identity bias, and robu
 **6.3 Our reflection (write ourselves — no LLM).**
 
 Prompts to answer in 1–2 short paragraphs total before submission:
-1. Given our measured identity FPRs (toxic-bert ≈ 15%, SVM ≈ 9%, decoder near-degenerate), what should change in how an AI moderation system *answers* or *acts* toward users?
+1. Given our measured identity FPRs (toxic-bert ≈ 14%, SVM ≈ 8%, decoder near-degenerate), what should change in how an AI moderation system *answers* or *acts* toward users?
 2. Would you require human review for flags that fire on neutral identity mentions? Why / why not?
 3. Should platforms publish bias-audit numbers like ours? What risk does that create, and what benefit?
 

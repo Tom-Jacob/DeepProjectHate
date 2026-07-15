@@ -344,6 +344,147 @@ def train_distill(
     return meta
 
 
+@dataclass
+class FPRFinetuneConfig:
+    """Config for second-stage fine-tuning with FPR penalty."""
+    gamma: float = 1.0
+    lr: float = 1e-5
+    weight_decay: float = 0.01
+    epochs: int = 2
+    batch_size: int = 16
+    max_length: int = MAX_LENGTH
+    warmup_ratio: float = 0.06
+    max_train_samples: Optional[int] = None
+    seed: int = SEED
+    output_dir: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def fpr_finetune(
+    base_model_path: str,
+    train_texts: Sequence[str],
+    train_labels: np.ndarray,
+    val_texts: Sequence[str],
+    val_labels: np.ndarray,
+    probe_df: "pd.DataFrame",
+    cfg: FPRFinetuneConfig,
+    device: Optional[torch.device] = None,
+) -> Dict[str, object]:
+    """Second-stage fine-tune to reduce identity-probe FPR.
+
+    Loss = BCE(task_batch) + gamma * mean(sigmoid(probe_logits[:, toxic]))
+
+    The BCE preserves accuracy on the main task while the FPR penalty
+    pushes the model to predict identity-probe sentences as non-toxic.
+    """
+    import pandas as pd  # local import to avoid circular
+
+    device = device or get_device()
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
+
+    out_dir = Path(cfg.output_dir) if cfg.output_dir else Path(base_model_path).parent / f"distilbert-student-fpr-g{cfg.gamma}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if cfg.max_train_samples and len(train_texts) > cfg.max_train_samples:
+        rng = np.random.RandomState(cfg.seed)
+        idx = rng.choice(len(train_texts), cfg.max_train_samples, replace=False)
+        train_texts = [train_texts[i] for i in idx]
+        train_labels = train_labels[idx]
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+    model = AutoModelForSequenceClassification.from_pretrained(base_model_path).to(device)
+    toxic_idx = TOXIC_LABELS.index("toxic")
+
+    train_ds = CommentLabelDataset(train_texts, train_labels, tokenizer, cfg.max_length)
+    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True)
+    val_ds = CommentLabelDataset(val_texts, val_labels, tokenizer, cfg.max_length)
+    val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False)
+
+    probe_texts = probe_df["text"].tolist()
+    probe_enc = tokenizer(
+        probe_texts, padding=True, truncation=True,
+        max_length=cfg.max_length, return_tensors="pt",
+    )
+    probe_enc = {
+        k: v.to(device) for k, v in probe_enc.items()
+        if k in ("input_ids", "attention_mask")
+    }
+
+    opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    total_steps = max(1, len(train_loader) * cfg.epochs)
+    warmup = int(total_steps * cfg.warmup_ratio)
+    sched = get_linear_schedule_with_warmup(opt, warmup, total_steps)
+
+    history = []
+    best_metric = -1.0
+
+    for epoch in range(cfg.epochs):
+        model.train()
+        running = {"bce": 0.0, "fpr_pen": 0.0, "loss": 0.0, "n": 0}
+
+        for batch in train_loader:
+            enc = {k: batch[k].to(device) for k in ("input_ids", "attention_mask")}
+            labels = batch["labels"].to(device)
+            opt.zero_grad()
+
+            logits = model(**enc).logits
+            bce = F.binary_cross_entropy_with_logits(logits, labels)
+
+            probe_logits = model(**probe_enc).logits
+            fpr_penalty = torch.sigmoid(probe_logits[:, toxic_idx]).mean()
+
+            loss = bce + cfg.gamma * fpr_penalty
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+            sched.step()
+
+            running["bce"] += float(bce.detach())
+            running["fpr_pen"] += float(fpr_penalty.detach())
+            running["loss"] += float(loss.detach())
+            running["n"] += 1
+
+        n = max(running["n"], 1)
+        train_stats = {k: running[k] / n for k in ("bce", "fpr_pen", "loss")}
+
+        val_metrics = evaluate_student(model, val_loader, device)
+
+        with torch.no_grad():
+            model.eval()
+            probe_probs = torch.sigmoid(model(**probe_enc).logits[:, toxic_idx]).cpu().numpy()
+            fpr_val = float((probe_probs >= 0.5).mean())
+
+        row = {"epoch": epoch + 1, **train_stats, **val_metrics, "probe_fpr": fpr_val}
+        history.append(row)
+        print(
+            f"epoch {epoch+1}/{cfg.epochs}  loss={train_stats['loss']:.4f}  "
+            f"bce={train_stats['bce']:.4f}  fpr_pen={train_stats['fpr_pen']:.4f}  "
+            f"toxic_f1={val_metrics['toxic_f1']:.3f}  probe_fpr={fpr_val:.3f}"
+        )
+
+        score = val_metrics["toxic_f1"] - fpr_val
+        if score >= best_metric:
+            best_metric = score
+            model.save_pretrained(out_dir)
+            tokenizer.save_pretrained(out_dir)
+
+    meta = {
+        "config": cfg.to_dict(),
+        "base_model": base_model_path,
+        "gamma": cfg.gamma,
+        "best_metric": best_metric,
+        "history": history,
+        "labels": TOXIC_LABELS,
+    }
+    with open(out_dir / "fpr_finetune_config.json", "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
+    print(f"Saved to {out_dir}")
+    return meta
+
+
 class DistilBertStudentScorer:
     """6-label DistilBERT student with binary ``predict_toxic_proba`` for the harness."""
 
