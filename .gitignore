@@ -19,5 +19,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Editor
+.vscode/
+.idea/
+
 # Kaggle zip
 *.zip

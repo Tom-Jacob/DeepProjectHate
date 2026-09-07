@@ -42,6 +42,9 @@ LOCAL_MODEL_DIR = MODELS_DIR / "toxic-bert"
 DISTILGPT2_MODEL_ID = "distilgpt2"
 LOCAL_DISTILGPT2_DIR = MODELS_DIR / "distilgpt2"
 
+BERT_BASE_MODEL_ID = "bert-base-uncased"
+LOCAL_BERT_BASE_DIR = MODELS_DIR / "bert-base-toxic"
+
 DECODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "decoder_smoke_scores.parquet"
 ENCODER_SMOKE_SCORES_PATH = PROCESSED_DIR / "encoder_smoke_scores.parquet"
 JOINED_SCORES_PATH = PROCESSED_DIR / "joined_smoke_scores.parquet"
