@@ -7,9 +7,11 @@
 > Rewritten to include the full current result set: the same-checkpoint
 > classifier-vs-prompting experiment (E1/E1-p), the corrected (not-purely-lexical)
 > accuracy finding, the divergent masking result, and Tom's distillation +
-> decoder fine-tune. A few cells still say `TODO_*` — these come straight from
-> the matching placeholders in `report/report_draft.md` and will be real
-> numbers as soon as that rerun finishes; everything else here is final.
+> decoder fine-tune. All numbers below are final, from the completed rerun
+> (see `report/report_draft.md`). Bonus finding not yet in a slide: robustness
+> is direction-dependent — toxic-bert resists evasion but is easily tricked
+> into flagging neutral text with the same perturbations (FP-induction
+> 65-91% vs. 11% baseline) — good Q&A material even without its own slide.
 > Timing adds to ~6:05 — cut Slide 10 to bullet 1+2 only if you need the 5s back.
 
 Use this outline to update `report/Words_That_Harm_Slides.pptx` (figures
@@ -63,19 +65,22 @@ Also report **params + ms/comment** for every model.
 
 ## Slide 6 — Robustness to obfuscation (35s)
 *Show `robustness_evasion_heatmap.png`*
-- toxic-bert baseline detection TODO_E2_BASE, leetspeak evasion **TODO_E2_LEET**
+- toxic-bert baseline detection 0.93, leetspeak evasion **0.28**
   — far the hardest to evade
-- SVM trivially evaded (leetspeak evasion **TODO_E0_LEET** — features *are* tokens)
+- SVM trivially evaded (leetspeak evasion **0.71** — features *are* tokens)
 - **bert-base-classifier — same architecture/size as toxic-bert — is nearly as
-  brittle (leetspeak evasion TODO_E1_LEET)**: the robustness edge tracks
+  brittle (leetspeak evasion 0.72)**: the robustness edge tracks
   toxic-bert's specific fine-tuning, not "being a BERT"
+- Bonus (Q&A): toxic-bert's robustness is direction-dependent — the same
+  perturbations that barely evade a real toxic comment get a NEUTRAL comment
+  wrongly flagged as toxic 65-91% of the time (vs. 11% baseline)
 
 ## Slide 7 — Masking: the shortcut, and the exception (40s)
 *Show masking figures*
-- Mask the identity token → FPR drops to **TODO_E2_MFPR_AFTER** (toxic-bert)
-  and **TODO_E0_MFPR_AFTER** (SVM): a clean lexical shortcut
+- Mask the identity token → FPR drops to **0.00** (toxic-bert)
+  and **0.00** (SVM): a clean lexical shortcut
 - **bert-base-classifier does the opposite — masking *increases* its FPR
-  (TODO_E1_MFPR_BEFORE → TODO_E1_MFPR_AFTER)**: the same data-driven bias, a
+  (0.10 → 0.19)**: the same data-driven bias, a
   different mechanism per model
 - Training-time SVM masking doesn't fix FPR; costs identity-hate recall
 
@@ -113,9 +118,10 @@ that works for one architecture won't automatically work for another.
 ---
 
 ## Video checklist
-- [ ] Update `report/Words_That_Harm_Slides.pptx` with this content once the
-      `TODO_*` numbers above are filled from `report/report_draft.md`
-- [ ] Swap in the regenerated figures from `report/figures/` (post-rerun)
+- [ ] Update `report/Words_That_Harm_Slides.pptx` with this content (a fresh,
+      standalone draft deck with these numbers already applied exists as
+      `Words_That_Harm_Slides_NEW.pptx`, outside the repo, for reference)
+- [ ] Swap in the regenerated figures from `report/figures/`
 - [ ] Keep total talk ≤ 6 minutes — Slide 10 down to bullets 1-2 if running long
 - [ ] Mention the repo URL once
 - [ ] Q&A prep: hateBERT and few-shot prompting are named future work, not
