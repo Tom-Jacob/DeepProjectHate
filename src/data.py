@@ -13,30 +13,45 @@ from paths import (
 )
 
 
-def verify_data_files() -> None:
-    """Raise FileNotFoundError with setup instructions if CSVs are missing."""
-    missing = [p for p in (TRAIN_CSV, TEST_CSV, TEST_LABELS_CSV) if not p.exists()]
-    if missing:
+def _require_csv(path, label: str) -> Path:
+    """Guard against None paths (wrong sys.path / stale kernel) before pandas I/O."""
+    if path is None:
+        raise TypeError(
+            f"{label} is None — expected a CSV path. "
+            "Restart the kernel and re-run the setup cell from DeepProjectHate "
+            "(sys.path must point at this repo's src/)."
+        )
+    p = Path(path)
+    if not p.is_file():
         raise FileNotFoundError(
-            "Missing Jigsaw CSV files:\n"
-            + "\n".join(f"  - {p}" for p in missing)
-            + f"\n\nDownload into {RAW_JIGSAW_DIR} — see README.md or run:\n"
+            f"Missing {label}: {p}\n"
+            f"Download into {RAW_JIGSAW_DIR} — see README.md or run:\n"
             "  python scripts/download_jigsaw.py"
         )
+    return p
+
+
+def verify_data_files() -> None:
+    """Raise FileNotFoundError with setup instructions if CSVs are missing."""
+    for path, label in (
+        (TRAIN_CSV, "TRAIN_CSV"),
+        (TEST_CSV, "TEST_CSV"),
+        (TEST_LABELS_CSV, "TEST_LABELS_CSV"),
+    ):
+        _require_csv(path, label)
 
 
 def load_train_df() -> pd.DataFrame:
-    verify_data_files()
-    df = pd.read_csv(TRAIN_CSV)
+    path = _require_csv(TRAIN_CSV, "TRAIN_CSV")
+    df = pd.read_csv(path)
     for label in TOXIC_LABELS:
         df[label] = df[label].astype(int)
     return df
 
 
 def load_test_df() -> pd.DataFrame:
-    verify_data_files()
-    texts = pd.read_csv(TEST_CSV)
-    labels = pd.read_csv(TEST_LABELS_CSV)
+    texts = pd.read_csv(_require_csv(TEST_CSV, "TEST_CSV"))
+    labels = pd.read_csv(_require_csv(TEST_LABELS_CSV, "TEST_LABELS_CSV"))
     df = texts.merge(labels, on="id")
     df = df[df["toxic"] != -1]
     for label in TOXIC_LABELS:

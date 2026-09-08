@@ -2,11 +2,14 @@
 """Per-identity false-positive-rate (FPR) fairness probe across models.
 
 Scores neutral identity-mention sentences (all non-toxic) with every model and
-reports how often each identity group is wrongly flagged as toxic.
+reports how often each identity group is wrongly flagged as toxic. Optionally
+re-runs the probe after applying each perturbation to both identity and control
+sentences (--perturb flag).
 
 Usage:
     python scripts/run_fairness.py
-    python scripts/run_fairness.py --models toxic-bert roberta-tox tfidf-svm
+    python scripts/run_fairness.py --models toxic-bert tfidf-svm distilgpt2-d2 distilgpt2-d1-ft
+    python scripts/run_fairness.py --perturb   # include perturbation-augmented probes
 """
 import argparse
 import json
@@ -26,6 +29,7 @@ from fairness import (  # noqa: E402
 )
 from model_registry import ALL_SPECS, MODEL_SPECS, load_scorer  # noqa: E402
 from paths import PROCESSED_DIR, SEED, TOXIC_LABELS  # noqa: E402
+from perturb import PERTURBATIONS, apply_perturbation  # noqa: E402
 from splits import get_split_frame  # noqa: E402
 
 RESULTS_PATH = PROCESSED_DIR / "fairness_results.json"
@@ -45,14 +49,41 @@ def get_fitted_scorer(key: str):
     return scorer
 
 
+def _run_perturbed_fairness(scorer, probe, threshold):
+    """Score identity probes and controls after each perturbation."""
+    results = {}
+    for pname in PERTURBATIONS:
+        pert_probe = probe.copy()
+        pert_probe["text"] = pert_probe["text"].apply(lambda t: apply_perturbation(pname, t))
+        pert_ctrl = [apply_perturbation(pname, t) for t in CONTROL_TEXTS]
+
+        probs = scorer.predict_toxic_proba(pert_probe["text"].tolist())
+        ctrl = scorer.predict_toxic_proba(pert_ctrl)
+
+        group_df = per_group_fpr(pert_probe, probs, threshold=threshold)
+        ctrl_stats = control_fpr(ctrl, threshold=threshold)
+        overall = float(group_df["fpr"].mean())
+
+        results[pname] = {
+            "overall_fpr": round(overall, 4),
+            "control_fpr": round(ctrl_stats["fpr"], 4),
+            "per_group": group_df.round(4).to_dict(orient="records"),
+        }
+        print(f"    {pname:12s} identity_FPR={overall:.3f}  control_FPR={ctrl_stats['fpr']:.3f}")
+    return results
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models", nargs="+", default=list(MODEL_SPECS))
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--perturb", action="store_true",
+                        help="Also run perturbation-augmented fairness probes")
     args = parser.parse_args()
 
     probe = build_identity_probe_df()
-    print(f"Probe: {len(probe)} neutral sentences over {probe['group'].nunique()} identity groups")
+    print(f"Probe: {len(probe)} neutral sentences over {probe['group'].nunique()} groups "
+          f"(incl. neutral baselines)")
 
     payload = {
         "threshold": args.threshold,
@@ -75,18 +106,37 @@ def main() -> None:
         ctrl_stats = control_fpr(ctrl, threshold=args.threshold)
         overall_fpr = float(group_df["fpr"].mean())
 
-        payload["models"][key] = {
+        model_block = {
             "model_id": ALL_SPECS[key].model_id,
             "family": ALL_SPECS[key].family,
             "overall_fpr": overall_fpr,
             "control_fpr": ctrl_stats["fpr"],
             "per_group": group_df.round(4).to_dict(orient="records"),
         }
+
+        if args.perturb:
+            print("  [perturbed fairness probes]")
+            model_block["perturbed"] = _run_perturbed_fairness(
+                scorer, probe, args.threshold
+            )
+
+        payload["models"][key] = model_block
         worst = group_df.sort_values("fpr", ascending=False).head(3)
         print(f"  overall identity FPR={overall_fpr:.3f} | control FPR={ctrl_stats['fpr']:.3f}")
         print("  worst groups: " + ", ".join(f"{r.group}={r.fpr:.2f}" for r in worst.itertuples()))
 
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if RESULTS_PATH.exists():
+        try:
+            existing = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+            if isinstance(existing.get("models"), dict):
+                merged = dict(existing["models"])
+                merged.update(payload["models"])
+                payload["models"] = merged
+                print(f"  merged into existing {RESULTS_PATH.name} ({len(merged)} models)")
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"  ! could not merge existing results ({exc}); overwriting")
+
     with open(RESULTS_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     print(f"\nWrote {RESULTS_PATH}")

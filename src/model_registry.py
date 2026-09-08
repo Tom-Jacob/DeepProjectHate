@@ -12,6 +12,7 @@ The TF-IDF + SVM baseline in ``baselines.py`` implements the same interface,
 so the comparison script can treat neural and non-neural models identically.
 """
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 import numpy as np
@@ -54,25 +55,34 @@ class ModelSpec:
     model_id: str       # HF hub id or "tfidf+linearsvm"
     family: str         # architecture family: BERT / DistilBERT / RoBERTa / non-neural
     specialization: str # in-domain / general-toxicity / non-neural
-    kind: str = "hf"    # "hf" | "baseline" | "decoder"
+    kind: str = "hf"    # "hf" | "baseline" | "decoder" | "student" | "mlm-prompt"
     decoder_method: Optional[str] = None  # "d1" (yes/no) | "d2" (fill-in-blank)
 
 
 # Core roster: same-data, different-architecture fair comparison.
 # toxic-bert (BERT encoder, in-domain) is the evaluation basis; TF-IDF+SVM is
 # the non-neural floor we train on the SAME Jigsaw data; DistilGPT-2 (decoder,
-# in DECODER_SPECS) is the third architecture. bert-base-classifier and
-# bert-base-mlm-prompt add a controlled pair: the SAME pretrained checkpoint
-# (bert-base-uncased) used as a trained classifier vs. as a zero-shot masked-LM
-# prompt — this restores the specialization axis (vs. toxic-bert) and directly
-# answers "dedicated classifier vs. LM prompting" on a matched base model.
-# All reduced to P(toxic).
+# in DECODER_SPECS) is the third architecture. All reduced to P(toxic).
 MODEL_SPECS = {
     "toxic-bert": ModelSpec(
         key="toxic-bert",
         model_id="unitary/toxic-bert",
         family="BERT",
         specialization="in-domain (Jigsaw)",
+    ),
+    "tfidf-svm": ModelSpec(
+        key="tfidf-svm",
+        model_id="tfidf+linearsvm",
+        family="non-neural",
+        specialization="non-neural",
+        kind="baseline",
+    ),
+    "distilbert-student": ModelSpec(
+        key="distilbert-student",
+        model_id="distilbert-student",  # local models/distilbert-student
+        family="DistilBERT",
+        specialization="KD student (toxic-bert → DistilBERT, 6-label)",
+        kind="student",
     ),
     "bert-base-classifier": ModelSpec(
         key="bert-base-classifier",
@@ -87,14 +97,11 @@ MODEL_SPECS = {
         specialization="generic, zero-shot (masked-LM prompt)",
         kind="mlm-prompt",
     ),
-    "tfidf-svm": ModelSpec(
-        key="tfidf-svm",
-        model_id="tfidf+linearsvm",
-        family="non-neural",
-        specialization="non-neural",
-        kind="baseline",
-    ),
 }
+# bert-base-classifier / bert-base-mlm-prompt are the SAME bert-base-uncased
+# checkpoint used two ways -- a trained classifier head vs. zero-shot masked-LM
+# prompting -- isolating method from architecture family for the "dedicated
+# classifier vs. LM prompting" question (see BertBaseMlmPromptScorer below).
 
 # Off-the-shelf classifiers trained on OTHER data — excluded from the fair
 # comparison (not same-data). Kept addressable as fallbacks, e.g. if our own
@@ -122,7 +129,15 @@ DECODER_SPECS = {
         key="distilgpt2-d1",
         model_id="distilgpt2",
         family="DistilGPT-2",
-        specialization="decoder yes/no prompt",
+        specialization="decoder yes/no prompt (zero-shot)",
+        kind="decoder",
+        decoder_method="d1",
+    ),
+    "distilgpt2-d1-ft": ModelSpec(
+        key="distilgpt2-d1-ft",
+        model_id="distilgpt2-d1-ft",
+        family="DistilGPT-2",
+        specialization="decoder yes/no (fine-tuned on toxic)",
         kind="decoder",
         decoder_method="d1",
     ),
@@ -130,7 +145,7 @@ DECODER_SPECS = {
         key="distilgpt2-d2",
         model_id="distilgpt2",
         family="DistilGPT-2",
-        specialization="decoder fill-in-blank",
+        specialization="decoder fill-in-blank (zero-shot)",
         kind="decoder",
         decoder_method="d2",
     ),
@@ -166,6 +181,22 @@ class HFSeqClassScorer:
         self.multi_label = problem == "multi_label_classification" or self.config.num_labels > 2
         self.pos_index = _find_positive_index(self.config.id2label)
         self.n_params = int(sum(p.numel() for p in self.model.parameters()))
+        # DistilBERT (and some saved students) reject token_type_ids even if the
+        # tokenizer emits them (e.g. BertTokenizer saved next to DistilBERT weights).
+        self._drop_token_type_ids = getattr(self.config, "model_type", "") == "distilbert"
+
+    def _encode(self, batch: Sequence[str]) -> dict:
+        enc = self.tokenizer(
+            list(batch),
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors="pt",
+        )
+        out = {k: v.to(self.device) for k, v in enc.items()}
+        if self._drop_token_type_ids:
+            out.pop("token_type_ids", None)
+        return out
 
     @torch.no_grad()
     def predict_toxic_proba(self, texts: Sequence[str], batch_size: int = 32) -> np.ndarray:
@@ -177,14 +208,7 @@ class HFSeqClassScorer:
         chunks: List[np.ndarray] = []
         for start in range(0, len(texts), batch_size):
             batch = texts[start : start + batch_size]
-            enc = self.tokenizer(
-                batch,
-                padding=True,
-                truncation=True,
-                max_length=self.max_length,
-                return_tensors="pt",
-            )
-            enc = {k: v.to(self.device) for k, v in enc.items()}
+            enc = self._encode(batch)
             logits = self.model(**enc).logits
             if self.multi_label:
                 # Independent sigmoid per label; take the 'toxic' logit.
@@ -216,22 +240,38 @@ class DecoderToxicScorer:
     ):
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        from paths import DISTILGPT2_MODEL_ID, LOCAL_DISTILGPT2_DIR
+        from paths import (
+            DISTILGPT2_MODEL_ID,
+            LOCAL_DISTILGPT2_D1_FT_DIR,
+            LOCAL_DISTILGPT2_DIR,
+        )
 
         self.method = method
         self.device = device or get_device()
-        # DistilGPT-2's context is 1024 tokens; long Jigsaw comments overflow it.
-        # Truncate the comment so prompt + continuation stay well under the limit.
         self.max_comment_tokens = max_comment_tokens
-        path = model_id or (
-            str(LOCAL_DISTILGPT2_DIR) if LOCAL_DISTILGPT2_DIR.exists() else DISTILGPT2_MODEL_ID
-        )
+
+        mid = model_id or DISTILGPT2_MODEL_ID
+        if mid in ("distilgpt2-d1-ft", "distilgpt2-ft"):
+            path = str(LOCAL_DISTILGPT2_D1_FT_DIR)
+            if not LOCAL_DISTILGPT2_D1_FT_DIR.exists():
+                raise FileNotFoundError(
+                    f"Fine-tuned decoder not found at {path}. "
+                    "Train on Colab: notebooks/10_decoder_finetune_colab.ipynb "
+                    "or: python scripts/train_decoder_ft.py"
+                )
+            self.model_id = "distilgpt2-d1-ft"
+        elif Path(mid).exists():
+            path = mid
+            self.model_id = Path(mid).name
+        else:
+            path = str(LOCAL_DISTILGPT2_DIR) if LOCAL_DISTILGPT2_DIR.exists() else DISTILGPT2_MODEL_ID
+            self.model_id = DISTILGPT2_MODEL_ID
+
         self.tokenizer = AutoTokenizer.from_pretrained(path)
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model = AutoModelForCausalLM.from_pretrained(path).to(self.device)
         self.model.eval()
-        self.model_id = DISTILGPT2_MODEL_ID
         self.n_params = int(sum(p.numel() for p in self.model.parameters()))
 
     def _truncate(self, text: str) -> str:
@@ -369,7 +409,24 @@ def load_scorer(spec: ModelSpec, device: Optional[torch.device] = None):
 
         return TfidfSvmScorer()
     if spec.kind == "decoder":
-        return DecoderToxicScorer(method=spec.decoder_method, device=device)
+        return DecoderToxicScorer(
+            method=spec.decoder_method,
+            model_id=spec.model_id,
+            device=device,
+        )
+    if spec.kind == "student":
+        from distill import DistilBertStudentScorer
+        from paths import LOCAL_DISTILBERT_STUDENT_DIR
+
+        return DistilBertStudentScorer(model_path=str(LOCAL_DISTILBERT_STUDENT_DIR), device=device)
     if spec.kind == "mlm-prompt":
         return BertBaseMlmPromptScorer(model_id=spec.model_id, device=device)
-    return HFSeqClassScorer(spec.model_id, device=device)
+    # Prefer local toxic-bert mirror when present (avoids hub / None path issues).
+    model_id = spec.model_id
+    if spec.key == "toxic-bert":
+        from paths import LOCAL_MODEL_DIR, MODEL_ID
+
+        model_id = str(LOCAL_MODEL_DIR) if LOCAL_MODEL_DIR.exists() else MODEL_ID
+        if model_id is None:
+            raise TypeError("toxic-bert model id is None — check paths.MODEL_ID / LOCAL_MODEL_DIR")
+    return HFSeqClassScorer(model_id, device=device)

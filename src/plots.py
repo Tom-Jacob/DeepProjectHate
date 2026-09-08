@@ -232,25 +232,49 @@ def plot_fairness_heatmap(results: dict, value: str = "fpr", figsize=(7, 9)):
     return fig, ax, mat
 
 
-def robustness_matrix(results: dict, value: str = "evasion_rate") -> pd.DataFrame:
-    """Pivot robustness_results.json into a perturbation x model matrix."""
+def robustness_matrix(
+    results: dict, value: str = "evasion_rate", probe: str = "toxic_probe"
+) -> pd.DataFrame:
+    """Pivot robustness_results.json into a perturbation x model matrix.
+
+    Supports both the current bidirectional schema (``block[probe]["perturbations"]``,
+    ``probe`` = "toxic_probe" for evasion_rate or "nontoxic_probe" for
+    fp_induction_rate) and the older flat schema (``block["perturbations"]``)
+    for backward compatibility with any pre-existing results JSON.
+    """
     rows = []
     for model, block in results["models"].items():
-        for pname, m in block["perturbations"].items():
-            rows.append({"model": model, "perturbation": pname, value: m[value]})
+        sub = block.get(probe, block)
+        perturbations = sub.get("perturbations", {})
+        for pname, m in perturbations.items():
+            if value in m:
+                rows.append({"model": model, "perturbation": pname, value: m[value]})
     long = pd.DataFrame(rows)
+    if long.empty:
+        return pd.DataFrame()
     return long.pivot(index="perturbation", columns="model", values=value)
 
 
-def plot_robustness_heatmap(results: dict, value: str = "evasion_rate", figsize=(7, 5)):
-    """Heatmap of evasion rate (rows = perturbations, cols = models). Higher = more brittle."""
-    mat = robustness_matrix(results, value=value)
+def plot_robustness_heatmap(
+    results: dict,
+    value: str = "evasion_rate",
+    probe: str = "toxic_probe",
+    figsize=(7, 5),
+):
+    """Heatmap of evasion/FP-induction rate (rows = perturbations, cols = models).
+
+    Higher = more brittle. ``value="evasion_rate", probe="toxic_probe"`` (default)
+    is the toxic-comment evasion direction; ``value="fp_induction_rate",
+    probe="nontoxic_probe"`` is the non-toxic false-positive-induction direction.
+    """
+    mat = robustness_matrix(results, value=value, probe=probe)
     fig, ax = plt.subplots(figsize=figsize)
     sns.heatmap(
         mat, annot=True, fmt=".2f", cmap="Oranges", vmin=0, vmax=1,
         cbar_kws={"label": value}, ax=ax, linewidths=0.5, linecolor="white",
     )
-    ax.set_title("Evasion rate under text perturbations (higher = more brittle)")
+    title = "Evasion rate" if probe == "toxic_probe" else "FP-induction rate"
+    ax.set_title(f"{title} under text perturbations (higher = more brittle)")
     ax.set_xlabel("")
     ax.set_ylabel("perturbation")
     fig.tight_layout()

@@ -32,8 +32,10 @@ def main() -> None:
 
     robust = _load(PROCESSED_DIR / "robustness_results.json")
     if robust:
-        fig, _, _ = plot_robustness_heatmap(robust)
+        fig, _, _ = plot_robustness_heatmap(robust, value="evasion_rate", probe="toxic_probe")
         print("Saved", save_figure(fig, FIGURES_DIR / "robustness_evasion_heatmap.png"))
+        fig, _, _ = plot_robustness_heatmap(robust, value="fp_induction_rate", probe="nontoxic_probe")
+        print("Saved", save_figure(fig, FIGURES_DIR / "robustness_fp_induction_heatmap.png"))
 
 
 if __name__ == "__main__":

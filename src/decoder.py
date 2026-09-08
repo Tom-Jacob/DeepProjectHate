@@ -63,8 +63,25 @@ def build_d2_prompt(text: str) -> str:
     return f"Comment: {text}\nThis comment is"
 
 
+GPT2_MAX_POS = 1024
+
+
 def _encode(tokenizer, text: str) -> List[int]:
     return tokenizer.encode(text, add_special_tokens=False)
+
+
+def _truncate_prompt(prompt_ids: Sequence[int], cont_ids: Sequence[int],
+                     max_pos: int = GPT2_MAX_POS) -> List[int]:
+    """Truncate prompt from the left so prompt + continuation fits in the context window.
+
+    Keeps the tail of the prompt (the suffix like "Answer:" or
+    "This comment is") which is critical for the model's next-token prediction.
+    """
+    budget = max_pos - len(cont_ids)
+    ids = list(prompt_ids)
+    if len(ids) > budget:
+        ids = ids[-budget:]
+    return ids
 
 
 def _continuation_logprob(
@@ -75,6 +92,7 @@ def _continuation_logprob(
 ) -> float:
     if not cont_ids:
         return float("-inf")
+    prompt_ids = _truncate_prompt(prompt_ids, cont_ids)
     input_ids = list(prompt_ids) + list(cont_ids)
     input_tensor = torch.tensor([input_ids], device=device)
     with torch.no_grad():
@@ -92,6 +110,7 @@ def _first_step_logprobs(
     prompt_ids: Sequence[int],
     device: torch.device,
 ) -> torch.Tensor:
+    prompt_ids = _truncate_prompt(prompt_ids, cont_ids=[0])  # 1 token budget for next step
     input_tensor = torch.tensor([list(prompt_ids)], device=device)
     with torch.no_grad():
         logits = model(input_tensor).logits
@@ -239,7 +258,8 @@ def score_yes_no(
     def _prefix_allowed_tokens_fn(_batch_id: int, _input_ids: torch.Tensor) -> List[int]:
         return allowed_ids
 
-    input_tensor = torch.tensor([prompt_ids], device=device)
+    gen_prompt_ids = _truncate_prompt(prompt_ids, cont_ids=[0] * max_new_tokens)
+    input_tensor = torch.tensor([gen_prompt_ids], device=device)
     attention_mask = _make_attention_mask(input_tensor)
     with torch.no_grad():
         out = model.generate(
@@ -250,7 +270,7 @@ def score_yes_no(
             pad_token_id=tokenizer.eos_token_id,
             prefix_allowed_tokens_fn=_prefix_allowed_tokens_fn,
         )
-    constrained_token = out[0, len(prompt_ids)].item()
+    constrained_token = out[0, len(gen_prompt_ids)].item()
     constrained_pred = _token_to_binary(constrained_token, yes_ids, no_ids)
     if constrained_pred is not None:
         pred_constrained = constrained_pred
@@ -263,7 +283,7 @@ def score_yes_no(
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
-    new_tokens = out_free[0, len(prompt_ids) :]
+    new_tokens = out_free[0, len(gen_prompt_ids) :]
     raw_completion = tokenizer.decode(new_tokens, skip_special_tokens=True)
     pred_generate = parse_yes_no(raw_completion)
     parse_abstain = pred_generate is None
@@ -320,7 +340,8 @@ def score_fill_blank(
     def _prefix_allowed_tokens_fn(_batch_id: int, _input_ids: torch.Tensor) -> List[int]:
         return allowed_ids
 
-    input_tensor = torch.tensor([prompt_ids], device=device)
+    gen_prompt_ids = _truncate_prompt(prompt_ids, cont_ids=[0] * max_new_tokens)
+    input_tensor = torch.tensor([gen_prompt_ids], device=device)
     attention_mask = _make_attention_mask(input_tensor)
     with torch.no_grad():
         out = model.generate(
@@ -331,7 +352,7 @@ def score_fill_blank(
             pad_token_id=tokenizer.eos_token_id,
             prefix_allowed_tokens_fn=_prefix_allowed_tokens_fn,
         )
-    constrained_token = out[0, len(prompt_ids)].item()
+    constrained_token = out[0, len(gen_prompt_ids)].item()
     constrained_pred = _token_to_binary(constrained_token, pos_ids, neg_ids)
     if constrained_pred is not None:
         pred_constrained = constrained_pred
@@ -344,7 +365,7 @@ def score_fill_blank(
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
-    new_tokens = out_free[0, len(prompt_ids) :]
+    new_tokens = out_free[0, len(gen_prompt_ids) :]
     raw_completion = tokenizer.decode(new_tokens, skip_special_tokens=True)
     pred_generate = _parse_fill_blank_labeled(raw_completion, positive_token, negative_token)
     parse_abstain = pred_generate is None

@@ -43,6 +43,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--train-n", type=int, default=20_000)
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--models", nargs="+", default=list(MODEL_SPECS),
+                        help="Model keys to ablate (default: all of MODEL_SPECS)")
     args = parser.parse_args()
 
     probe = build_identity_probe_df()
@@ -65,8 +67,16 @@ def main() -> None:
     y_train = train_df["toxic"].astype(int).values
 
     svm = None
-    for key, spec in MODEL_SPECS.items():
-        scorer = load_scorer(spec)
+    for key in args.models:
+        if key not in MODEL_SPECS:
+            print(f"  ! unknown model {key!r}, skipping")
+            continue
+        spec = MODEL_SPECS[key]
+        try:
+            scorer = load_scorer(spec)
+        except (FileNotFoundError, OSError) as exc:
+            print(f"  ! {key}: skipping, weights unavailable ({exc})")
+            continue
         if isinstance(scorer, TfidfSvmScorer):
             print("  training baseline SVM ...")
             scorer.fit(train_texts, y_train)

@@ -6,11 +6,12 @@ For the living project context see [`../CLAUDE.md`](../CLAUDE.md).
 
 > Note: some tables below reflect **earlier** runs (an initial pass that included
 > RoBERTa / off-the-shelf DistilBERT, then a 3-architecture roster of toxic-bert ·
-> TF-IDF+SVM · DistilGPT-2). The roster is now **5 model configurations**: the
-> above three plus `bert-base-classifier` and `bert-base-mlm-prompt` — the same
-> `bert-base-uncased` checkpoint used as a trained classifier vs. a zero-shot
-> masked-LM prompt (see `CLAUDE.md`). For the **final** numbers and the full
-> write-up see [`../report/report_draft.md`](../report/report_draft.md).
+> TF-IDF+SVM · DistilGPT-2). The roster has since grown on two fronts: this half
+> added `bert-base-classifier` and `bert-base-mlm-prompt` (same checkpoint, two
+> methods; see `CLAUDE.md`), and Tom added `distilbert-student` (soft-KD) and
+> `distilgpt2-d1-ft` (fine-tuned decoder) — see `docs/HANDOFF.md`. For the
+> **final** numbers and the full write-up see
+> [`../report/report_draft.md`](../report/report_draft.md).
 
 ---
 
@@ -213,19 +214,32 @@ directly tests "dedicated classifier vs. LM prompting" on a matched checkpoint.
 Both wired into the comparison/fairness/robustness/masking scripts; pairwise
 agreement in `scripts/run_bertbase_agreement.py`.
 
+Also done (Tom, on GPU/Colab — see `docs/HANDOFF.md`): soft-KD distillation
+(toxic-bert → DistilBERT student, `src/distill.py`), a DistilGPT-2 decoder
+fine-tune (`src/decoder_finetune.py`), an expanded fairness probe (368
+sentences, 23 groups incl. neutral baselines, 3 length tiers), FPR-regularized
+second-stage fine-tuning (`scripts/train_fpr_finetune.py`), and the report/slides
+deliverables (`report/report.tex`, `Words_That_Harm_Report.docx`,
+`Words_That_Harm_Slides.pptx`, `PRESENTATION_OUTLINE.md`). Weights for the
+student and fine-tuned decoder are Colab outputs — gitignored, not present in
+this checkout unless you run `notebooks/09_distillation_colab.ipynb` /
+`10_decoder_finetune_colab.ipynb` yourself; `src/roster.py` reports what's
+actually available locally.
+
 Not done (explicit future work, not by oversight):
-- **hateBERT** cross-domain encoder and a **real distillation** run
-  (toxic-bert → DistilBERT) — no usable local GPU; would need Colab.
-- **Few-shot** decoder prompting (only zero-shot D1/D2 implemented).
+- **hateBERT** cross-domain encoder.
+- **Few-shot** decoder prompting (only zero-shot D1/D2 and the D1 fine-tune are implemented).
 - **ECE / calibration curves** — not implemented for any model.
-- **Neural masked fine-tune** — the training-time masking intervention only
-  retrains the TF-IDF+SVM; no transformer has been fine-tuned with identity
-  terms masked.
-- **Phase 8** deliverables (slides + video) — not started; report/README are
-  in progress.
+- **Neural masked fine-tune** of an encoder specifically via identity-term
+  removal — the FPR-regularized fine-tune (above) targets the same problem via
+  a loss penalty instead, which is the more principled version of this idea.
+
+Still open regardless of the above: **§6.3 ethics reflection** (human-only,
+no LLM) and **recording the ≤6 min presentation video**.
 
 Consolidated narrative for the report: specialization (toxic-bert) buys accuracy
 and robustness but costs fairness; the same base model (bert-base) is far weaker
-as a zero-shot prompt than as a trained classifier; a non-neural baseline is a
-shockingly strong, fast floor; identity bias is data-driven (masking erases it)
-rather than architecture-specific.
+as a zero-shot prompt than as a trained classifier, and so is DistilGPT-2 until
+fine-tuned; a non-neural baseline is a shockingly strong, fast floor; identity
+bias is data-driven (masking erases it for toxic-bert/SVM) rather than
+architecture-specific; compression via soft-KD did not amplify bias here.

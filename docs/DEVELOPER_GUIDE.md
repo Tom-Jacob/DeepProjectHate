@@ -40,20 +40,29 @@ src/
   model_registry.py  ★ the hub: ModelSpec, MODEL_SPECS / FALLBACK_SPECS /
                      DECODER_SPECS / ALL_SPECS, load_scorer(spec),
                      HFSeqClassScorer, DecoderToxicScorer, BertBaseMlmPromptScorer
+  roster.py          FAIR_ROSTER, model_ready / print_roster_status — checks
+                     which models have local weights before you score with them
   baselines.py       TfidfSvmScorer (TF-IDF + calibrated LinearSVM)
   encoder.py         ToxicBertEncoder — 6-label toxic-bert            (pre-existing)
   decoder.py         DistilGPT-2 D1/D2 prompting                       (Tom's)
+  distill.py         soft-KD toxic-bert -> DistilBERT (6-label), DistilBertStudentScorer (Tom's)
+  decoder_finetune.py DistilGPT-2 D1 fine-tune on the yes/no answer tokens (Tom's)
 
-  fairness.py        identity templates, build_identity_probe_df, per_group_fpr
+  fairness.py        identity templates (23 groups, 3 length tiers), build_identity_probe_df, per_group_fpr
   perturb.py         PERTURBATIONS registry, apply_perturbation
   intervention.py    mask_terms / strip_terms, inference_ablation
   evaluate.py        multi-label metrics + agreement                   (Tom's)
   plots.py           all figure helpers + save_figure
 
-scripts/             CLI wrappers around the above (see §5)
+scripts/             CLI wrappers around the above, incl. train_distill.py,
+                     train_decoder_ft.py, train_fpr_finetune.py (see §5)
 ```
 
-`★` = the file to read first; everything routes through `load_scorer`.
+`★` = the file to read first; everything routes through `load_scorer`. Registry
+keys `distilbert-student` (`kind=student`) and `distilgpt2-d1-ft` need Tom's
+Colab-trained weights in `models/distilbert-student/` / `models/distilgpt2-d1-ft/`
+— gitignored, not present unless you run the corresponding Colab notebook.
+Check `roster.print_roster_status()` before scoring with them.
 
 ---
 
@@ -75,6 +84,8 @@ probs = scorer.predict_toxic_proba(["you are an idiot", "have a nice day"])
 | `bert-base-mlm-prompt` | `BertBaseMlmPromptScorer` | zero-shot: same `bert-base-uncased` checkpoint, no training, scores a masked-LM fill-blank prompt |
 | `tfidf-svm` | `TfidfSvmScorer` | must `.fit(texts, y)` before scoring |
 | `distilgpt2-d1` / `-d2` | `DecoderToxicScorer` | wraps `decoder.py`; truncates to 512 tok |
+| `distilgpt2-d1-ft` | `DecoderToxicScorer` | D1 fine-tuned on the answer tokens; needs `models/distilgpt2-d1-ft/` (Colab) |
+| `distilbert-student` | `DistilBertStudentScorer` (`distill.py`) | soft-KD from toxic-bert; needs `models/distilbert-student/` (Colab) |
 | `distilbert-tox`, `roberta-tox` | `HFSeqClassScorer` | fallback only (`FALLBACK_SPECS`) |
 
 The non-neural baseline needs training first:
