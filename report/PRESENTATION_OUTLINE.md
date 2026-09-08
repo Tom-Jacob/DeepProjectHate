@@ -1,80 +1,123 @@
 # Presentation outline — Words That Harm (≤6 min / ~10 slides)
 
-**Course:** EE046211 · **Authors:** Omer Ramon, Tom Jacob  
-**Repo:** https://github.com/Tom-Jacob/DeepProjectHate  
+**Course:** EE046211 · **Authors:** Omer Ramon, Tom Jacob
+**Repo:** https://github.com/Tom-Jacob/DeepProjectHate
 **Figures:** `report/figures/`
 
-Use this outline to build PowerPoint / Google Slides, then record the video.
+> Rewritten to include the full current result set: the same-checkpoint
+> classifier-vs-prompting experiment (E1/E1-p), the corrected (not-purely-lexical)
+> accuracy finding, the divergent masking result, and Tom's distillation +
+> decoder fine-tune. A few cells still say `TODO_*` — these come straight from
+> the matching placeholders in `report/report_draft.md` and will be real
+> numbers as soon as that rerun finishes; everything else here is final.
+> Timing adds to ~6:05 — cut Slide 10 to bullet 1+2 only if you need the 5s back.
+
+Use this outline to update `report/Words_That_Harm_Slides.pptx` (figures
+already embedded there — swap in the regenerated PNGs after the rerun), then
+record the video.
 
 ---
 
-## Slide 1 — Title (15s)
-**Words That Harm:** Architectures and Fairness in Toxic-Comment Detection  
+## Slide 1 — Title (10s)
+**Words That Harm:** Architectures and Fairness in Toxic-Comment Detection
 Omer Ramon · Tom Jacob · Technion EE046211
 
-## Slide 2 — Motivation (30s)
-- Moderation models hide / remove comments at scale
-- Benchmark F1 hides two failure modes: missed hate **and** over-flagging identity mentions
-- We **audit** models — not ship a product classifier
+## Slide 2 — Motivation + hypotheses (35s)
+- Moderation models hide/remove comments at scale; benchmark F1 hides two
+  failure modes — missed hate **and** over-flagging identity mentions
+- We **audit** models, not ship a product classifier
+- **H1:** specialization trades fairness for accuracy
+- **H2:** compression amplifies bias
+- **H3:** LM prompting is weaker/format-sensitive than a trained head
 
-## Slide 3 — Research questions (30s)
-- **H1:** Specialized encoder (toxic-bert) trades fairness for accuracy
-- **H2:** Smaller / compressed models lose accuracy *and* amplify bias
-- **H3:** Decoder prompting (DistilGPT-2) is weaker / format-sensitive vs discriminative heads
+## Slide 3 — Fair comparison setup (40s)
+Same Jigsaw data, one interface `P(toxic)`, five model configurations:
 
-## Slide 4 — Fair comparison setup (40s)
-Three architectures, **same Jigsaw data**, one interface `P(toxic)`:
 | Model | Role |
 |-------|------|
-| toxic-bert (109M) | in-domain encoder |
+| toxic-bert (109M) | in-domain specialized encoder |
+| **bert-base-classifier (109M)** | **generic encoder, fine-tuned by us** |
+| **bert-base-mlm-prompt (109M)** | **same checkpoint, zero-shot prompted** |
 | TF-IDF + LinearSVM | non-neural floor (we train) |
-| DistilGPT-2 D1/D2 | zero-shot decoder prompting |
+| DistilGPT-2 D1/D2 (+ D1-ft, Tom) | zero-shot decoder prompting + fine-tuned |
 
-Also report **params + ms/comment**.
+Also report **params + ms/comment** for every model.
 
-## Slide 5 — Accuracy vs efficiency (45s)
-*Show `model_comparison_bars_test.png` + `accuracy_latency_test.png`*
-- SVM ≈ toxic-bert F1; **beats** PR-AUC at ~1700× lower latency
-- DistilGPT-2 near chance (ROC-AUC ≈ 0.4–0.5)
-- Takeaway: toxicity detection is largely **lexical**
+## Slide 4 — Accuracy vs efficiency (40s)
+*Show `model_comparison_bars_test.png` + `accuracy_latency_test.png`* (test, n=800)
+- toxic-bert F1 0.752, PR-AUC 0.835 — the **SVM (F1 0.703, PR-AUC 0.784) comes
+  close but does not match or beat it** at this sample size; still ~3300×
+  cheaper (0.1ms vs. 175ms/comment)
+- DistilGPT-2 near chance (ROC-AUC 0.39–0.46)
+- Takeaway: toxicity detection is **substantially lexical, not purely so** —
+  the encoder's extra capacity buys a real, bounded edge
 
-## Slide 6 — Fairness / identity FPR (45s)
-*Show `fairness_fpr_heatmap.png`*
-- Control FPR = 0 for classifiers → FPs are identity-driven
-- toxic-bert FPR > SVM FPR → specialization costs fairness (**H1**)
-- Decoder control FPR ≈ 1.0 → degenerate classifier
+## Slide 5 — Fairness / identity FPR (40s)
+*Show `fairness_fpr_heatmap.png`* (368-sentence probe, 23 groups)
+- Control FPR = 0 for every classifier → false positives are identity-driven
+- toxic-bert FPR 0.087 > SVM FPR 0.049 → specialization costs fairness (**H1**)
+- **But our own generic bert-base-classifier is FPR 0.103 — less fair than
+  specialized toxic-bert, on the identical architecture.** Specialization
+  alone doesn't explain the ranking (see Slide 8)
+- Decoder control FPR ≈ 1.0 → degenerate
 
-## Slide 7 — Robustness to obfuscation (40s)
+## Slide 6 — Robustness to obfuscation (35s)
 *Show `robustness_evasion_heatmap.png`*
-- toxic-bert much harder to evade (leetspeak)
-- SVM trivially evaded (features *are* tokens)
-- Encoder's real edge is **robustness**, not raw F1
+- toxic-bert baseline detection TODO_E2_BASE, leetspeak evasion **TODO_E2_LEET**
+  — far the hardest to evade
+- SVM trivially evaded (leetspeak evasion **TODO_E0_LEET** — features *are* tokens)
+- **bert-base-classifier — same architecture/size as toxic-bert — is nearly as
+  brittle (leetspeak evasion TODO_E1_LEET)**: the robustness edge tracks
+  toxic-bert's specific fine-tuning, not "being a BERT"
 
-## Slide 8 — Masking intervention (40s)
+## Slide 7 — Masking: the shortcut, and the exception (40s)
 *Show masking figures*
-- Mask identity token → FPR drops to **0** (encoder and SVM)
-- Bias is a **lexical shortcut**, not architecture-specific
-- Training-time SVM masking does **not** fix FPR; hurts identity-hate recall
+- Mask the identity token → FPR drops to **TODO_E2_MFPR_AFTER** (toxic-bert)
+  and **TODO_E0_MFPR_AFTER** (SVM): a clean lexical shortcut
+- **bert-base-classifier does the opposite — masking *increases* its FPR
+  (TODO_E1_MFPR_BEFORE → TODO_E1_MFPR_AFTER)**: the same data-driven bias, a
+  different mechanism per model
+- Training-time SVM masking doesn't fix FPR; costs identity-hate recall
 
-## Slide 9 — Encoder vs decoder (40s)
-*Show `enc_dec_*.png`*
-- Agreement ~0.19; decoder labels almost everything toxic
-- Disagreements are mostly decoder false positives
-- At small scale: discriminative head ≫ generative prompting (**H3**)
+## Slide 8 — Same checkpoint, two methods (45s) — headline slide
+*Table from report §3.10*
+- `bert-base-classifier` (trained head) vs. `bert-base-mlm-prompt` (zero-shot
+  prompt) — **literally the same pretrained weights**, method is the only
+  variable
+- F1 0.675 vs. **0.000** — the trained head dominates
+- But `bert-base-mlm-prompt`'s ROC-AUC (0.722) is far above DistilGPT-2's
+  (≈0.4): it *can* rank comments, it's just miscalibrated at threshold 0.5
+- **This is the cleanest test of H3 in the project** — architecture and
+  pretraining held fixed, only method varies
 
-## Slide 10 — Conclusions + ethics (40s)
-1. Lexical floor is strong  
-2. Encoder value = robustness  
-3. Small LM prompting fails here  
-4. Identity bias is data-driven / token-level  
+## Slide 9 — Distillation + decoder fine-tune (Tom) (30s)
+- Soft-KD DistilBERT student **matches** toxic-bert's F1 (0.772 vs. 0.770) at
+  lower latency and **lower** identity FPR (0.062 vs. 0.152) — compression did
+  not amplify bias (**H2 partially rejected**)
+- Fine-tuning DistilGPT-2 on the D1 prompt recovers real discrimination
+  (F1 0.19 → 0.59, ROC-AUC 0.46 → 0.97) — zero-shot failure is a supervision
+  problem, not an architecture ceiling
 
-**Ethics (say aloud):** we audit failure modes; over-flagging identity mentions needs human review and published bias numbers.  
-**Future:** fill distillation numbers after Colab notebook 09; larger eval samples.
+## Slide 10 — Conclusions + ethics (35s)
+1. Lexical floor is strong, but not the whole story
+2. Encoder's edge is robustness — and it's earned, not free with the architecture
+3. Discriminative head ≫ prompting, most cleanly shown same-checkpoint
+4. Identity bias is data-driven but **not one universal mechanism**
+5. Compression (soft-KD) didn't cost fairness here
+
+**Ethics (say aloud):** we audit failure modes, not ship a moderation product;
+over-flagging identity mentions needs human review and published per-group
+FPR numbers — and since the *mechanism* differs per model (Slide 7), a fix
+that works for one architecture won't automatically work for another.
 
 ---
 
 ## Video checklist
-- [ ] Open `report/Words_That_Harm_Slides.pptx` (figures already embedded)
-- [ ] Keep total talk ≤ 6 minutes
-- [ ] Mention repo URL once
-- [ ] Q&A prep: distillation = soft KD 6-label DistilBERT (Colab); hateBERT deferred
+- [ ] Update `report/Words_That_Harm_Slides.pptx` with this content once the
+      `TODO_*` numbers above are filled from `report/report_draft.md`
+- [ ] Swap in the regenerated figures from `report/figures/` (post-rerun)
+- [ ] Keep total talk ≤ 6 minutes — Slide 10 down to bullets 1-2 if running long
+- [ ] Mention the repo URL once
+- [ ] Q&A prep: hateBERT and few-shot prompting are named future work, not
+      oversights (see report §4); distillation/decoder-ft weights are Colab
+      outputs not in the git repo (gitignored) — mention if asked about repro
