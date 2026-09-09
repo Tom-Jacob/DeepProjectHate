@@ -1,0 +1,49 @@
+{
+  "config": {
+    "temperature": 2.0,
+    "alpha": 0.7,
+    "beta": 0.0,
+    "lr": 2e-05,
+    "weight_decay": 0.01,
+    "epochs": 2,
+    "batch_size": 16,
+    "max_length": 256,
+    "warmup_ratio": 0.06,
+    "max_train_samples": 4000,
+    "max_val_samples": 800,
+    "seed": 211,
+    "teacher_id": "unitary/toxic-bert",
+    "student_init": "distilbert-base-uncased",
+    "output_dir": "C:\\Users\\omerr\\OneDrive\\\u05e9\u05d5\u05dc\u05d7\u05df \u05d4\u05e2\u05d1\u05d5\u05d3\u05d4\\OMER\\\u05d0\u05e7\u05d3\u05de\u05d9\u05d4\\\u05ea\u05d5\u05d0\u05e8 \u05e9\u05e0\u05d9\\\u05d8\u05db\u05e0\u05d9\u05d5\u05df\\\u05dc\u05de\u05d9\u05d3\u05d4 \u05e2\u05de\u05d5\u05e7\u05d4 0460217\\\u05e4\u05e8\u05d5\u05d9\u05e7\u05d8\\DeepProjectHate\\models\\distilbert-student"
+  },
+  "teacher_path": "unitary/toxic-bert",
+  "best_val_macro_f1": 0.38252230528092596,
+  "history": [
+    {
+      "epoch": 1,
+      "kd": 0.7406771228909492,
+      "hard": 0.20346284015476704,
+      "loss": 0.5795128323435783,
+      "macro_f1": 0.35961891643709826,
+      "micro_f1": 0.6881720430107527,
+      "toxic_f1": 0.7107438016528925
+    },
+    {
+      "epoch": 2,
+      "kd": 0.10567858543992042,
+      "hard": 0.057015593725722284,
+      "loss": 0.09107968730479479,
+      "macro_f1": 0.38252230528092596,
+      "micro_f1": 0.7444794952681387,
+      "toxic_f1": 0.7972027972027972
+    }
+  ],
+  "labels": [
+    "toxic",
+    "severe_toxic",
+    "obscene",
+    "threat",
+    "insult",
+    "identity_hate"
+  ]
+}

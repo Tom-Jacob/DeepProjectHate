@@ -1,0 +1,416 @@
+{
+  "threshold": 0.5,
+  "n_toxic": 25,
+  "n_nontoxic": 25,
+  "seed": 211,
+  "created_at": "2026-09-09T21:01:27.478312+00:00",
+  "perturbations": [
+    "typos",
+    "leetspeak",
+    "space_out",
+    "repeat_chars",
+    "upper_case",
+    "punct_noise"
+  ],
+  "models": {
+    "toxic-bert": {
+      "toxic_probe": {
+        "baseline_detection_rate": 0.93,
+        "n": 100,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.81,
+            "evasion_rate": 0.1398
+          },
+          "leetspeak": {
+            "detection_rate": 0.7,
+            "evasion_rate": 0.2796
+          },
+          "space_out": {
+            "detection_rate": 0.95,
+            "evasion_rate": 0.0538
+          },
+          "repeat_chars": {
+            "detection_rate": 0.88,
+            "evasion_rate": 0.129
+          },
+          "upper_case": {
+            "detection_rate": 0.93,
+            "evasion_rate": 0.0
+          },
+          "punct_noise": {
+            "detection_rate": 0.85,
+            "evasion_rate": 0.1505
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.11,
+        "n": 100,
+        "n_correct_neg": 89,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.0337
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.4944
+          },
+          "space_out": {
+            "fp_induction_rate": 0.9101
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.809
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.0
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.6517
+          }
+        }
+      }
+    },
+    "bert-base-classifier": {
+      "toxic_probe": {
+        "baseline_detection_rate": 0.89,
+        "n": 100,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.77,
+            "evasion_rate": 0.1685
+          },
+          "leetspeak": {
+            "detection_rate": 0.25,
+            "evasion_rate": 0.7191
+          },
+          "space_out": {
+            "detection_rate": 0.79,
+            "evasion_rate": 0.191
+          },
+          "repeat_chars": {
+            "detection_rate": 0.86,
+            "evasion_rate": 0.1236
+          },
+          "upper_case": {
+            "detection_rate": 0.89,
+            "evasion_rate": 0.0
+          },
+          "punct_noise": {
+            "detection_rate": 0.77,
+            "evasion_rate": 0.2247
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.09,
+        "n": 100,
+        "n_correct_neg": 91,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.033
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.0
+          },
+          "space_out": {
+            "fp_induction_rate": 0.7033
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.7253
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.0
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.6703
+          }
+        }
+      }
+    },
+    "bert-base-mlm-prompt": {
+      "toxic_probe": {
+        "baseline_detection_rate": 0.0,
+        "n": 100,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.0,
+            "evasion_rate": NaN
+          },
+          "leetspeak": {
+            "detection_rate": 0.0,
+            "evasion_rate": NaN
+          },
+          "space_out": {
+            "detection_rate": 0.0,
+            "evasion_rate": NaN
+          },
+          "repeat_chars": {
+            "detection_rate": 0.0,
+            "evasion_rate": NaN
+          },
+          "upper_case": {
+            "detection_rate": 0.0,
+            "evasion_rate": NaN
+          },
+          "punct_noise": {
+            "detection_rate": 0.0,
+            "evasion_rate": NaN
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.01,
+        "n": 100,
+        "n_correct_neg": 99,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.0
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.0
+          },
+          "space_out": {
+            "fp_induction_rate": 0.0
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.0
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.0
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.0
+          }
+        }
+      }
+    },
+    "tfidf-svm": {
+      "toxic_probe": {
+        "baseline_detection_rate": 0.76,
+        "n": 100,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.63,
+            "evasion_rate": 0.2105
+          },
+          "leetspeak": {
+            "detection_rate": 0.22,
+            "evasion_rate": 0.7105
+          },
+          "space_out": {
+            "detection_rate": 0.2,
+            "evasion_rate": 0.75
+          },
+          "repeat_chars": {
+            "detection_rate": 0.17,
+            "evasion_rate": 0.7895
+          },
+          "upper_case": {
+            "detection_rate": 0.76,
+            "evasion_rate": 0.0
+          },
+          "punct_noise": {
+            "detection_rate": 0.2,
+            "evasion_rate": 0.75
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.05,
+        "n": 100,
+        "n_correct_neg": 95,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.0105
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.0
+          },
+          "space_out": {
+            "fp_induction_rate": 0.0211
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.0
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.0
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.0211
+          }
+        }
+      }
+    },
+    "distilgpt2-d1": {
+      "toxic_probe": {
+        "baseline_detection_rate": 0.58,
+        "n": 100,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.62,
+            "evasion_rate": 0.0862
+          },
+          "leetspeak": {
+            "detection_rate": 0.7,
+            "evasion_rate": 0.1034
+          },
+          "space_out": {
+            "detection_rate": 0.63,
+            "evasion_rate": 0.1724
+          },
+          "repeat_chars": {
+            "detection_rate": 0.57,
+            "evasion_rate": 0.1724
+          },
+          "upper_case": {
+            "detection_rate": 0.78,
+            "evasion_rate": 0.0172
+          },
+          "punct_noise": {
+            "detection_rate": 0.65,
+            "evasion_rate": 0.1724
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.84,
+        "n": 100,
+        "n_correct_neg": 16,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.1875
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.4375
+          },
+          "space_out": {
+            "fp_induction_rate": 0.375
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.375
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.5
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.3125
+          }
+        }
+      }
+    },
+    "distilbert-student": {
+      "toxic_probe": {
+        "baseline_detection_rate": 0.82,
+        "n": 100,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.69,
+            "evasion_rate": 0.2073
+          },
+          "leetspeak": {
+            "detection_rate": 0.3,
+            "evasion_rate": 0.6341
+          },
+          "space_out": {
+            "detection_rate": 0.75,
+            "evasion_rate": 0.2317
+          },
+          "repeat_chars": {
+            "detection_rate": 0.79,
+            "evasion_rate": 0.1829
+          },
+          "upper_case": {
+            "detection_rate": 0.82,
+            "evasion_rate": 0.0
+          },
+          "punct_noise": {
+            "detection_rate": 0.42,
+            "evasion_rate": 0.5244
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.08,
+        "n": 100,
+        "n_correct_neg": 92,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.0543
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.0
+          },
+          "space_out": {
+            "fp_induction_rate": 0.7065
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.7935
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.0
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.2391
+          }
+        }
+      }
+    },
+    "distilgpt2-d1-ft": {
+      "toxic_probe": {
+        "baseline_detection_rate": 1.0,
+        "n": 25,
+        "perturbations": {
+          "typos": {
+            "detection_rate": 0.96,
+            "evasion_rate": 0.04
+          },
+          "leetspeak": {
+            "detection_rate": 0.32,
+            "evasion_rate": 0.68
+          },
+          "space_out": {
+            "detection_rate": 0.84,
+            "evasion_rate": 0.16
+          },
+          "repeat_chars": {
+            "detection_rate": 1.0,
+            "evasion_rate": 0.0
+          },
+          "upper_case": {
+            "detection_rate": 1.0,
+            "evasion_rate": 0.0
+          },
+          "punct_noise": {
+            "detection_rate": 0.16,
+            "evasion_rate": 0.84
+          }
+        }
+      },
+      "nontoxic_probe": {
+        "baseline_fp_rate": 0.28,
+        "n": 25,
+        "n_correct_neg": 18,
+        "perturbations": {
+          "typos": {
+            "fp_induction_rate": 0.4444
+          },
+          "leetspeak": {
+            "fp_induction_rate": 0.0556
+          },
+          "space_out": {
+            "fp_induction_rate": 0.6667
+          },
+          "repeat_chars": {
+            "fp_induction_rate": 0.9444
+          },
+          "upper_case": {
+            "fp_induction_rate": 0.8333
+          },
+          "punct_noise": {
+            "fp_induction_rate": 0.0556
+          }
+        }
+      }
+    }
+  }
+}

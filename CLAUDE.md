@@ -26,12 +26,15 @@ model-auditing angle. Roster (all reduced to a single P(toxic)): `toxic-bert`,
   (`src/fairness.py`: 368 sentences, 23 groups incl. neutral baselines, 3 length tiers)
 - **Robustness:** perturbations (typos, leetspeak, spacing, casing, punctuation)
 - **Intervention:** inference-time identity masking (all models) + training-time
-  masking retrain (TF-IDF+SVM) + FPR-regularized second-stage fine-tune (`scripts/train_fpr_finetune.py`)
+  masking retrain (TF-IDF+SVM). An FPR-regularized second-stage fine-tune
+  (`scripts/train_fpr_finetune.py`) is **implemented but never successfully run** —
+  the penalty backprops the whole 368-sentence probe every step (~20x cost), which
+  is not CPU-feasible; see `report/report_draft.md` §3.9 for the two failed attempts.
 
-hateBERT, few-shot decoder prompting, and ECE calibration remain explicit
-**future work** (see `report/report_draft.md` §4). Distillation and decoder
-fine-tuning were originally future work too but are now done — see
-`docs/HANDOFF.md` for what's done vs. pending.
+hateBERT, few-shot decoder prompting, ECE calibration, and the FPR-regularized
+fine-tune remain explicit **future work** (see `report/report_draft.md` §4).
+Distillation and decoder fine-tuning were originally future work too but are now
+done — see `docs/HANDOFF.md`.
 
 Target hypotheses (pick 2-3 for the report): specialized encoders trade fairness for
 accuracy; decoder/zero-shot prompting is prompt-sensitive / less calibrated than a
@@ -111,7 +114,7 @@ you don't have `models/distilbert-student/` locally).
 - `scripts/` — CLI helpers: download, splits, `train_bert_base_classifier`,
   `train_distill`/`train_decoder_ft`/`train_fpr_finetune`, `run_model_comparison`/
   `run_fairness`/`run_robustness`/`run_masking`/`run_agreement`/`run_bertbase_agreement`,
-  `plot_*`, `export_report_docx.py`.
+  `plot_*`.
 - `notebooks/` — 01 EDA, 02 decoder smoke, 03-04 fair comparison/stress tests,
   09 distillation (Colab), 10 decoder fine-tune (Colab), 11-13 rigorous per-family
   audits, 14 soft-F1 distillation, 15 full eval (Colab), 16 FPR fine-tuning;

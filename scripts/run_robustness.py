@@ -147,6 +147,21 @@ def main() -> None:
         }
 
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # Merge into existing results rather than overwriting: scoring one extra
+    # model must not wipe the rows already collected for the others. Note the
+    # top-level n_toxic/n_nontoxic describe THIS run; each model block records
+    # the sample size it was actually measured at.
+    if RESULTS_PATH.exists():
+        try:
+            existing = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+            if isinstance(existing.get("models"), dict):
+                merged = dict(existing["models"])
+                merged.update(payload["models"])
+                payload["models"] = merged
+                print(f"  merged into existing {RESULTS_PATH.name} ({len(merged)} models)")
+        except Exception as exc:
+            print(f"  ! could not merge existing results ({exc}); overwriting")
+
     with open(RESULTS_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     print(f"\nWrote {RESULTS_PATH}")

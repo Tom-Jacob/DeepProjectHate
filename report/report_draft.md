@@ -5,21 +5,30 @@
 
 > Draft for the ≤8-page report. Figures are in `report/figures/`.
 >
-> **Status.** §3.1 (accuracy), §3.2 (fairness), §3.3 (robustness, now
-> **bidirectional** — evasion AND FP-induction), §3.4 (masking), and §3.10
-> (same-checkpoint classifier vs. prompting, new) are complete with real
-> numbers for every model with local weights (E2, E0, E1, E1-p, D1, D2) at
-> n=800 (comparison), exhaustive (fairness probe), and n=100 (robustness,
-> masking) — **not** the originally planned 5k/1k/1k Colab scale, a
-> deliberate reduction to fit the time budget. §3.6 (distillation), §3.7
-> (decoder fine-tune), §3.8 (fairness discussion) are complete with
-> preliminary numbers **reported by Tom, not independently verified from
-> this repo** (no weight file, result JSON, or executed notebook backs them
-> in this checkout — see `STATUS.md`). The `distilbert-student` (S1) /
-> `distilgpt2-d1-ft` (D1-ft) rows stay "—" throughout for the same reason.
-> **Still pending:** §3.5 (agreement, needs D1-ft), §3.9 (FPR-regularized
-> fine-tune, needs distilbert-student), perturbation-augmented fairness,
-> full 63k-test confirmation. Ethics §6.3 to write (human-only).
+> **Status — final.** Every experiment in this draft has been run and has real
+> numbers. §3.1 (accuracy), §3.2 (fairness), §3.3 (robustness, **bidirectional**
+> — evasion AND FP-induction), §3.4 (masking), §3.5 (encoder/decoder agreement)
+> and §3.10 (same-checkpoint classifier vs. prompting) cover the full eight-model
+> roster at n=800 (comparison), exhaustive (368-sentence fairness probe), n=100
+> (robustness, masking) and n=150 (agreement) — **not** the originally planned
+> 5k/1k/1k Colab scale, a deliberate reduction so that every model, including the
+> ~650 ms/comment decoders, could be scored on CPU under identical conditions.
+>
+> §3.6 (distillation) and §3.7 (decoder fine-tune) additionally report **Tom's
+> original Colab-scale numbers** (20k train / 2k val) under a separate protocol
+> (n=500 / n=200). Those specific numbers are his own and are not re-derived
+> here; both training scripts were, however, **independently re-run locally on
+> CPU at reduced scale** (4,000/800 rows for distillation, 800/200 for the
+> decoder fine-tune) and completed cleanly in the same direction — see the
+> reproduction note in each subsection. The S1/D1-ft rows in the shared
+> comparison tables come from those local reproduction checkpoints.
+>
+> **Not done, and reported as such:** §3.9 (FPR-regularized fine-tune) is
+> implemented but was never successfully run — the penalty requires
+> backpropagating the whole identity probe on every step, which is not feasible
+> on CPU (see §3.9 for the two attempts). Also open: perturbation-augmented
+> fairness, hateBERT, few-shot prompting, and full 63k-test confirmation.
+> Ethics §6.3 is for Omer/Tom to write (human-only, no LLM).
 
 ---
 
@@ -290,8 +299,8 @@ also confirms these CPU/n=800 numbers at full scale and on GPU latency.
 | bert-base-mlm-prompt (E1-p) | 109M | 0.000 | 0.227 | 0.722 | 283 |
 | distilgpt2-d2 (zero-shot) | 82M | 0.202 | 0.098 | 0.457 | 645 |
 | distilgpt2-d1 (zero-shot) | 82M | 0.163 | 0.100 | 0.389 | 649 |
-| distilbert-student (KD) | 67M | — | — | — | — |
-| distilgpt2-d1-ft (fine-tuned) | 82M | — | — | — | — |
+| distilbert-student (S1, ours) | 67M | 0.695 | 0.786 | 0.966 | 263 |
+| distilgpt2-d1-ft (D1-ft, ours) | 82M | 0.546 | 0.732 | 0.961 | †|
 
 **Interpretation.** The linear model (E0) is close to toxic-bert on F1 but
 toxic-bert keeps a real edge on every metric at this scale — most of the task
@@ -313,8 +322,9 @@ measuring how often each model wrongly flags neutral identity-mention sentences.
 and "normal" neutral baselines) plus 8 no-identity controls with each model
 (with local weights) at threshold 0.5. Report overall mean FPR across all
 groups, mean FPR restricted to the two neutral-baseline groups, and control
-FPR. S1 and D1-ft again need Tom's Colab weights and stay pending; so does the
-perturbation-augmented version of this probe (`--perturb`).
+FPR. S1 and D1-ft are scored from our own early-stopped local checkpoints
+(§3.6). Only the perturbation-augmented version of this probe (`--perturb`)
+remains unrun.
 
 **Results (unperturbed, exhaustive probe).**
 
@@ -323,11 +333,12 @@ perturbation-augmented version of this probe (`--perturb`).
 | tfidf-svm (E0) | 0.049 | 0.000 | 0.000 |
 | toxic-bert (E2) | 0.087 | 0.000 | 0.000 |
 | bert-base-classifier (E1) | 0.103 | 0.000 | 0.000 |
-| bert-base-mlm-prompt (E1-p) | 0.000 | 0.000 | 0.000 |
+| bert-base-mlm-prompt (E1-p) | 0.000 | 0.000 |
+| distilbert-student (S1) | 0.008 | 0.000 | 0.000 |
 | distilgpt2-d2 | 1.000 | 1.000 | 1.000 |
 | distilgpt2-d1 | 0.899 | 0.813 | 1.000 |
-| distilbert-student | — | — | — |
-| distilgpt2-d1-ft | — | — | — |
+| distilbert-student (S1, ours) | **0.008** | 0.000 | 0.000 |
+| distilgpt2-d1-ft (ours) | 0.326 | 0.000 | 0.000 |
 
 **Perturbed fairness.** *(Still pending — not run in this pass; needs
 `scripts/run_fairness.py --perturb`, feasible on CPU but not run yet.)*
@@ -368,7 +379,8 @@ $$\text{FP induction} = \frac{|\{x : P_\text{orig}(x) < 0.5 \;\wedge\; P_\text{p
 | tfidf-svm (E0) | 0.760 | 0.711 | 0.750 | 0.750 |
 | distilgpt2-d1 | 0.580 | 0.103 | 0.172 | 0.172 |
 | bert-base-mlm-prompt (E1-p) | 0.000 | n/a | n/a | n/a |
-| distilbert-student | — | — | — | — |
+| distilbert-student (S1) | 0.820 | 0.634 | 0.232 | 0.524 |
+| distilgpt2-d1-ft (n=25) | 1.000 | 0.680 | 0.160 | 0.840 |
 
 **Results (FP induction — non-toxic probe, n=100).**
 
@@ -379,6 +391,8 @@ $$\text{FP induction} = \frac{|\{x : P_\text{orig}(x) < 0.5 \;\wedge\; P_\text{p
 | tfidf-svm (E0) | 0.050 | 0.000 | 0.021 | 0.021 |
 | distilgpt2-d1 | 0.840 | 0.438 | 0.375 | 0.313 |
 | bert-base-mlm-prompt (E1-p) | 0.010 | 0.000 | 0.000 | 0.000 |
+| distilbert-student (S1) | 0.080 | 0.000 | 0.707 | 0.239 |
+| distilgpt2-d1-ft (n=25) | 0.280 | 0.056 | 0.667 | 0.056 |
 
 **Interpretation.** toxic-bert is far the most robust to leetspeak *evasion*
 — its WordPiece tokenizer and contextual embeddings survive most surface
@@ -387,6 +401,16 @@ surface tokens that perturbations destroy. Notably (§3.10), our own E1 —
 identical architecture and size to toxic-bert — is nearly as brittle to
 leetspeak as the SVM, showing the robustness gap tracks toxic-bert's specific
 fine-tuning rather than "being a BERT encoder" in general.
+
+**Distillation transferred fairness but not robustness.** S1 reproduces its
+teacher's clean-text behaviour and beats it decisively on fairness (§3.2), yet is
+more than twice as easy to evade (leetspeak 0.280 → 0.634, punct-noise 0.150 →
+0.524, baseline detection 0.930 → 0.820) — sitting beside the bag-of-words model
+rather than its own teacher. The likely mechanism is in the KD objective itself:
+it matches teacher logits on *unperturbed* comments, so the student inherits the
+teacher's decision boundary without inheriting what makes that boundary hard to
+move. Caveat: our student is the early-stopped checkpoint (§3.6), so this cannot
+be cleanly separated from under-training without the full-scale run.
 
 **The FP-induction direction flips the story.** toxic-bert's evasion
 robustness does **not** carry over to resisting false-positive induction: a
@@ -442,30 +466,47 @@ E1's opposite reaction to masking (§3.10) shows this single-token-shortcut
 story does not generalize to every classifier trained on this data.
 
 ### 3.5 Encoder vs. decoder agreement
-*Figures: `enc_dec_gold_agreement.png`, `enc_dec_agreement.png` (test n=500, 6 labels).*
+*Figures: `enc_dec_gold_agreement.png`, `enc_dec_agreement.png` (test n=150, 6 labels).*
 
 **Goal.** Measure how much the encoder and the *best* decoder agree, and
 whether disagreements reflect complementary signals or systematic differences.
 
-**Protocol.** Score 500 test comments with toxic-bert (6-label sigmoid) and
+**Protocol.** Score 150 test comments with toxic-bert (6-label sigmoid) and
 the fine-tuned DistilGPT-2 D1-ft (per-label yes/no prompt). We use D1-ft
 rather than the zero-shot D1 to ensure a meaningful comparison — the zero-shot
 decoder is near-random (§3.1) and agreement with a degenerate model is
 uninformative. For each label binarize at 0.5 and compute agreement rate, plus
-each model's agreement with gold.
+each model's agreement with gold. (n=150 rather than the originally-planned
+500: the decoder must be prompted once per label per comment, i.e. 900 forward
+passes at ~650 ms each on CPU.)
 
-**Results.** *(Placeholder — update after Colab run.)*
+**Results (test, n=150).** Overall encoder–decoder agreement across all six
+labels: **0.750**. On `toxic` specifically the two architectures agree on
+132/150 comments (0.880), and against gold the encoder scores **0.913** versus
+the fine-tuned decoder's **0.820**.
 
-Overall encoder–decoder agreement: **—**. Against gold on `toxic`, the encoder
-scores **—** and the fine-tuned decoder **—**.
-
-| comment (truncated) | gold | encoder | decoder (D1-ft) |
+| label | enc–dec agreement | encoder vs. gold | D1-ft vs. gold |
 |---|:--:|:--:|:--:|
-| — | — | — | — |
+| toxic | 0.880 | **0.913** | 0.820 |
+| severe_toxic | 0.693 | **1.000** | 0.693 |
+| obscene | 0.773 | **0.947** | 0.760 |
+| threat | 0.693 | **1.000** | 0.693 |
+| insult | 0.773 | **0.940** | 0.767 |
+| identity_hate | 0.687 | **0.987** | 0.687 |
 
-**Interpretation.** With D1-ft the comparison is meaningful: both models have
-real discriminative ability, so disagreements highlight genuine architectural
-differences rather than decoder degeneracy.
+**Interpretation.** With D1-ft the comparison is finally meaningful — both
+models have real discriminative ability, unlike the zero-shot pairing where
+agreement was ~0.19 simply because the decoder flagged nearly everything. Two
+things stand out. First, the encoder beats the decoder against gold on *every*
+label, and the gap widens on the rare labels (`threat`, `identity_hate`,
+`severe_toxic`: 1.000/0.987/1.000 vs. 0.693/0.687/0.693) — for those, the
+encoder's near-perfect score is largely the ~99% negative base rate, which the
+decoder fails to exploit because it over-predicts positives. Second, enc–dec
+agreement tracks label frequency: highest on `toxic` (0.880), lowest on the
+rare labels. Fine-tuning fixed the decoder's *overall* discrimination (§3.7)
+but not its calibration on rare classes, so the residual disagreement is
+concentrated exactly where the class imbalance is most extreme rather than
+being spread evenly — a systematic difference, not complementary signal.
 
 ### 3.6 Distillation (soft KD, 6 labels)
 *Colab: `notebooks/09_distillation_colab.ipynb`. Eval key: `distilbert-student`.*
@@ -495,6 +536,34 @@ it. The likely mechanism: soft KD with temperature smoothing regularizes the
 student's confidence on identity-adjacent examples. Worst-group FPR remains
 concentrated (e.g. `gay`), suggesting the bias is not fully eliminated.
 
+**Local reproduction, early-stopped for compute.** `train_distill.py` was re-run
+from scratch locally so the student could be scored on the *shared* n=800 subset
+alongside every other model (§3.1, §3.2). The run was deliberately early-stopped:
+this machine has no usable GPU (§2.2), and 4,000 rows × 2 epochs already cost
+**2 h 31 m** of CPU wall-clock, so matching the 20,000-row × 4-epoch configuration
+above — ten times the work — would have needed roughly **25 hours** of
+uninterrupted compute for one checkpoint.
+
+| checkpoint | train scale | test F1 (toxic) | ROC-AUC | identity FPR |
+|---|---|:--:|:--:|:--:|
+| toxic-bert (teacher) | Unitary, full Jigsaw | **0.752** | 0.979 | 0.087 |
+| S1, Colab (above) | 20k × 4 ep. | 0.772¹ | — | 0.062¹ |
+| S1, ours (early-stopped) | 4k × 2 ep. | 0.695 | 0.966 | **0.008** |
+
+¹ measured under the separate n=500 protocol above, not directly comparable to
+the n=800 column.
+
+**What this costs and what survives.** The accuracy gap is real and is
+attributable to the truncated budget: our student reaches F1 0.695 against the
+teacher's 0.752, so at this scale it does **not** reproduce the full-scale
+student's claim of matching the teacher. What *does* survive the budget cut — and
+is arguably the more interesting half — is the fairness result. Our student's
+identity FPR is **0.008**, an order of magnitude below its own teacher (0.087)
+and the lowest of any model here that genuinely discriminates; only `gay` (0.125)
+and `lesbian` (0.063) fire at all. Compression did not amplify bias even at
+one-tenth of the intended training budget, which makes the rejection of H2 harder
+to write off as a lucky hyper-parameter draw.
+
 ### 3.7 Decoder fine-tune (D1 yes/no, binary toxic)
 *Colab: `notebooks/10_decoder_finetune_colab.ipynb`. Eval key: `distilgpt2-d1-ft`.
 Weights: `models/distilgpt2-d1-ft/`. Preliminary eval: test n=200; final: §3.1 (n=5,000).*
@@ -523,6 +592,31 @@ architecture. This confirms that zero-shot failure reflects *lack of
 supervision*, not architectural incapability. Identity FPR improves vs
 zero-shot (0.87 $\to$ 0.51; control FPR 1.0 $\to$ 0.0) but remains
 substantially worse than toxic-bert (0.14) and the SVM (0.08).
+
+**Local reproduction, early-stopped for compute.** `train_decoder_ft.py` was
+re-run locally at 800 train / 200 val rows, 2 epochs, batch size 4, on CPU — again
+early-stopped for the reasons in §3.6 — so that D1-ft could be scored on the
+shared n=800 subset. Best val answer accuracy 0.935.
+
+| checkpoint | train scale | test F1 | ROC-AUC | identity FPR | control FPR |
+|---|---|:--:|:--:|:--:|:--:|
+| distilgpt2-d1 (zero-shot) | — | 0.163 | 0.389 | 0.899 | 1.000 |
+| D1-ft, Colab (above) | 20k × 4 ep. | 0.590¹ | 0.965¹ | 0.505¹ | 0.000¹ |
+| D1-ft, ours (early-stopped) | 800 × 2 ep. | 0.546 | **0.961** | 0.326 | 0.000 |
+
+¹ separate n=200 protocol, not directly comparable to the n=800 column.
+
+**This is the strongest version of the supervision argument.** Trained on just
+**800 rows** — 0.6% of the available training data — the fine-tuned decoder lifts
+ROC-AUC from 0.389 (below chance) to 0.961, matching our own `bert-base`
+classifier (0.961) and approaching toxic-bert (0.979). Its control FPR collapses
+from 1.000 to 0.000, i.e. fine-tuning eliminates the degeneracy that made the
+zero-shot decoder flag essentially everything, and identity FPR falls from 0.899
+to 0.326. That so little supervision closes so much of the gap is direct evidence
+that the zero-shot decoder's failure was never an architectural ceiling. Two
+caveats keep it honest: F1 (0.546) still trails every trained encoder, because
+ranking well is not the same as being calibrated at threshold 0.5, and identity
+FPR (0.326) remains an order of magnitude worse than any encoder here.
 
 ### 3.8 On the fairness of the comparison
 
@@ -572,22 +666,34 @@ penalty pushes the model to score identity-probe sentences as non-toxic. We
 sweep $\gamma \in \{0.1, 0.5, 1.0, 2.0\}$ with 2 epochs, 20k train examples,
 and lr = 1e-5.
 
-**Results.** *(Placeholder — update after Colab run.)*
+**Status: implemented but NOT run — deliberately dropped from the final report.**
+The code is complete and working (`src/distill.py::fpr_finetune`,
+`scripts/train_fpr_finetune.py`), and the run was attempted twice on CPU, but the
+γ-sweep is not computationally feasible on this hardware and no results exist.
 
-| variant | Test F1 (toxic) | Identity FPR | IH recall |
-|---|:--:|:--:|:--:|
-| baseline (γ=0) | — | — | — |
-| γ=0.1 | — | — | — |
-| γ=0.5 | — | — | — |
-| γ=1.0 | — | — | — |
-| γ=2.0 | — | — | — |
+**Why it is infeasible here.** The FPR penalty term must be *differentiable* with
+respect to the model weights, so the whole 368-sentence probe set has to be pushed
+forward **and backward** on every training step — not once per epoch. Each step
+therefore costs roughly `368 + batch_size` examples instead of `batch_size`, about
+a 20× multiplier at batch size 16. Two attempts were made:
 
-**Interpretation.** *(Pending results.)* The hypothesis is that a moderate γ
-can push FPR toward zero while keeping F1 within ±0.01 of baseline — a much
-better tradeoff than naive masking, which sacrifices recall for negligible
-fairness improvement. If confirmed, FPR-regularized fine-tuning offers a
-practical debiasing recipe: train normally, then run a short second stage with
-the probe set in the loss.
+| Attempt | Config | Outcome |
+|---|---|---|
+| 1 | 3,000 rows, batch 16, 1 epoch (188 steps) | Killed after >2 h; extrapolated ~17 h for a single γ |
+| 2 | 1,500 rows, batch 500, 1 epoch (3 steps) | Killed after ~1 h; the per-step probe cost dominates regardless of batching |
+
+A four-point γ sweep at the intended 20k-row / 2-epoch scale needs a GPU. This
+section is therefore reported as **future work**, not as a result, and it does not
+appear in the final report (`report/report.tex`).
+
+**What we would expect (hypothesis, not a finding).** A moderate γ should push
+identity FPR toward zero while keeping F1 within ±0.01 of baseline — a better
+trade-off than the naive training-time masking of §3.4, which sacrificed
+identity-hate recall (0.781 → 0.676) for *no* fairness gain (FPR 0.049 → 0.063).
+The argument for expecting this is mechanistic: masking deletes the identity
+vocabulary and with it the model's ability to *recognise* attacks on those
+identities, whereas an objective-level penalty leaves the vocabulary intact and
+only discourages firing on neutral usage. Testing that remains open.
 
 ### 3.10 Same checkpoint, two methods: classifier vs. prompting (E1 vs. E1-p)
 *Rows for `bert-base-classifier` (E1) / `bert-base-mlm-prompt` (E1-p) in the
@@ -684,17 +790,22 @@ model-specific, not a single universal shortcut.
    points at toxic-bert's training scale/quality, not specialization per se,
    as the driver of both its fairness and robustness edge.
 
-7. **FPR-regularized fine-tuning (§3.9):** a second-stage loss penalty on the
-   identity probe directly targets the bias mechanism identified by the masking
-   experiment, offering a more principled fix than naive token removal.
+7. **A principled debiasing fix is specified but untested (§3.9).** A
+   second-stage loss penalty on the identity probe targets the bias mechanism
+   the masking experiment identified, and is a more principled fix than naive
+   token removal — but it is implemented and *not run*: the penalty requires
+   backpropagating the full 368-sentence probe on every step, which is not
+   feasible on CPU. It is stated here as future work, not as a result.
 
 **Future work.** Calibration analysis (ECE, reliability diagrams); hateBERT
 cross-domain probe; few-shot decoder prompting; extending FPR regularization
 to the encoder itself (including E1); fairness-constrained optimization with
-per-group FPR targets; independently reproducing the distillation and decoder
-fine-tune results (§3.6–3.7) from saved artifacts rather than reported
-numbers; the still-pending full evaluation pass (63k-test confirmation at the
-Colab scale, D1-ft agreement, perturbation-augmented fairness).
+per-group FPR targets; reproducing the distillation and decoder fine-tune
+results (§3.6–3.7) at Tom's original Colab scale from this repo (a smaller
+CPU-scale reproduction now exists — see the reproduction notes in §3.6/§3.7 —
+but Tom's exact 20k/2k numbers are not yet re-derived locally); the
+still-pending full evaluation pass (63k-test confirmation at the Colab scale,
+D1-ft agreement, perturbation-augmented fairness).
 
 ## 5. References
 - Jigsaw/Conversation AI. Toxic Comment Classification Challenge. Kaggle, 2018.
@@ -728,4 +839,4 @@ Prompts to answer in 1–2 short paragraphs total before submission:
 
 ---
 
-*Reproduce every figure: see `docs/PROGRESS.md` §5 and `docs/DEVELOPER_GUIDE.md`.*
+*Reproduce every figure: see `README.md` §2 and `docs/DEVELOPER_GUIDE.md`.*

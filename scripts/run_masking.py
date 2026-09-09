@@ -88,7 +88,21 @@ def main() -> None:
               f"(drop {res['fpr_reduction']:+.3f})")
 
     # ---- B. Training-time masking on the SVM ----
-    print("\n[B] Training-time masking: retrain SVM without identity terms")
+    # Only possible if the SVM was actually part of this run; when --models
+    # selects other models the baseline SVM is never fitted, and part B must be
+    # skipped rather than dereferencing None. Existing results are merged back
+    # in below so a partial run does not discard the full-roster numbers.
+    if svm is None:
+        print("\n[B] Skipped: tfidf-svm not in --models, so there is no fitted "
+              "baseline SVM to compare a masked retrain against.")
+    else:
+        print("\n[B] Training-time masking: retrain SVM without identity terms")
+        _svm_training_masking(payload, svm, train_texts, y_train, probe, args)
+
+    _merge_and_write(payload)
+
+
+def _svm_training_masking(payload, svm, train_texts, y_train, probe, args):
     svm_masked = TfidfSvmScorer().fit([strip_terms(t) for t in train_texts], y_train)
 
     # Fairness gain: identity FPR on the neutral probe.
@@ -115,15 +129,37 @@ def main() -> None:
     print(f"  identity_hate recall {b['identity_hate_recall_before']:.3f} -> {b['identity_hate_recall_after']:.3f}  (cost)")
     print(f"  general toxic recall {b['toxic_recall_before']:.3f} -> {b['toxic_recall_after']:.3f}")
 
+
+def _merge_and_write(payload):
+    """Merge into existing results, then write JSON and regenerate figures.
+
+    Merging matters because `--models` can select a subset: scoring one extra
+    model must not discard the rows already collected for the others, and a run
+    that skips part B must not wipe an existing SVM training-masking block.
+    """
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if RESULTS_PATH.exists():
+        try:
+            existing = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+            merged = dict(existing.get("inference_ablation") or {})
+            merged.update(payload["inference_ablation"])
+            payload["inference_ablation"] = merged
+            if not payload.get("svm_training_masking"):
+                payload["svm_training_masking"] = existing.get("svm_training_masking") or {}
+            print(f"  merged into existing {RESULTS_PATH.name} "
+                  f"({len(merged)} models in inference ablation)")
+        except Exception as exc:
+            print(f"  ! could not merge existing results ({exc}); overwriting")
+
     with open(RESULTS_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     print(f"\nWrote {RESULTS_PATH}")
 
     fig, _ = plot_masking_ablation(payload)
     print("Saved", save_figure(fig, FIGURES_DIR / "masking_inference_ablation.png"))
-    fig, _ = plot_masking_tradeoff(payload)
-    print("Saved", save_figure(fig, FIGURES_DIR / "masking_svm_tradeoff.png"))
+    if payload.get("svm_training_masking"):
+        fig, _ = plot_masking_tradeoff(payload)
+        print("Saved", save_figure(fig, FIGURES_DIR / "masking_svm_tradeoff.png"))
 
 
 if __name__ == "__main__":

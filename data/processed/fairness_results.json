@@ -1,0 +1,1360 @@
+{
+  "threshold": 0.5,
+  "seed": 211,
+  "created_at": "2026-09-09T19:55:23.674588+00:00",
+  "n_probe": 368,
+  "models": {
+    "toxic-bert": {
+      "model_id": "unitary/toxic-bert",
+      "family": "BERT",
+      "overall_fpr": 0.08695652173913043,
+      "control_fpr": 0.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.3125,
+          "mean_prob": 0.2762
+        },
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2524
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2167
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2745
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.1875,
+          "mean_prob": 0.1292
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0046
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0086
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0008
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.3125,
+          "mean_prob": 0.4013
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.1875,
+          "mean_prob": 0.2624
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0492
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0006
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2623
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0243
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0194
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0262
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0253
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0259
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0068
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.004
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0199
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0208
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0981
+        }
+      ]
+    },
+    "bert-base-classifier": {
+      "model_id": "C:\\Users\\omerr\\OneDrive\\\u05e9\u05d5\u05dc\u05d7\u05df \u05d4\u05e2\u05d1\u05d5\u05d3\u05d4\\OMER\\\u05d0\u05e7\u05d3\u05de\u05d9\u05d4\\\u05ea\u05d5\u05d0\u05e8 \u05e9\u05e0\u05d9\\\u05d8\u05db\u05e0\u05d9\u05d5\u05df\\\u05dc\u05de\u05d9\u05d3\u05d4 \u05e2\u05de\u05d5\u05e7\u05d4 0460217\\\u05e4\u05e8\u05d5\u05d9\u05e7\u05d8\\DeepProjectHate\\models\\bert-base-toxic",
+      "family": "BERT",
+      "overall_fpr": 0.10326086956521739,
+      "control_fpr": 0.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.125,
+          "mean_prob": 0.1758
+        },
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0516
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0373
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.125,
+          "mean_prob": 0.1703
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.0625,
+          "mean_prob": 0.1198
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1342
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0347
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0122
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.6103
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.5854
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.5,
+          "mean_prob": 0.46
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0139
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0284
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0134
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1179
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0451
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.044
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.3125,
+          "mean_prob": 0.3122
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0114
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0077
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0099
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0116
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0128
+        }
+      ]
+    },
+    "bert-base-mlm-prompt": {
+      "model_id": "bert-base-uncased",
+      "family": "BERT",
+      "overall_fpr": 0.0,
+      "control_fpr": 0.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0364
+        },
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0419
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0405
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0207
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1358
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0343
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0371
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0294
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1018
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0572
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0749
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0206
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0437
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.12
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0595
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1281
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.041
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0702
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0452
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0348
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0677
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0522
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0393
+        }
+      ]
+    },
+    "tfidf-svm": {
+      "model_id": "tfidf+linearsvm",
+      "family": "non-neural",
+      "overall_fpr": 0.04891304347826087,
+      "control_fpr": 0.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.0625,
+          "mean_prob": 0.1446
+        },
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0419
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0502
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.0625,
+          "mean_prob": 0.1363
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0423
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.087
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0951
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0356
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.5435
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.0625,
+          "mean_prob": 0.0774
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1199
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0643
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2556
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0267
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1439
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0585
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1108
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.0625,
+          "mean_prob": 0.1544
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0462
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0514
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0392
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0656
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0487
+        }
+      ]
+    },
+    "distilgpt2-d1": {
+      "model_id": "distilgpt2",
+      "family": "DistilGPT-2",
+      "overall_fpr": 0.8994565217391305,
+      "control_fpr": 1.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.5824
+        },
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.875,
+          "mean_prob": 0.5657
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.8125,
+          "mean_prob": 0.5474
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6468
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6613
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.875,
+          "mean_prob": 0.6151
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6162
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.6875,
+          "mean_prob": 0.5282
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6454
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6161
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6201
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.5803
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6114
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6098
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6038
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.875,
+          "mean_prob": 0.562
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.75,
+          "mean_prob": 0.523
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6003
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.5913
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.625
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.6083
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.9375,
+          "mean_prob": 0.607
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.8125,
+          "mean_prob": 0.5875
+        }
+      ]
+    },
+    "distilgpt2-d2": {
+      "model_id": "distilgpt2",
+      "family": "DistilGPT-2",
+      "overall_fpr": 1.0,
+      "control_fpr": 1.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.92
+        },
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9247
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9224
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9181
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9233
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9218
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9225
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9094
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9258
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9313
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9308
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9207
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9224
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9188
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9252
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9247
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9205
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9285
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9143
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9168
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9045
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9239
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 1.0,
+          "mean_prob": 0.9181
+        }
+      ]
+    },
+    "distilbert-student": {
+      "model_id": "distilbert-student",
+      "family": "DistilBERT",
+      "overall_fpr": 0.008152173913043478,
+      "control_fpr": 0.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0106
+        },
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0122
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0055
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.012
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0468
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0124
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0061
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0041
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.125,
+          "mean_prob": 0.2156
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.0625,
+          "mean_prob": 0.1529
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0341
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0076
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0083
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0075
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0094
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0292
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0063
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0347
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0101
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0054
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0129
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.012
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0088
+        }
+      ]
+    },
+    "distilgpt2-d1-ft": {
+      "model_id": "distilgpt2-d1-ft",
+      "family": "DistilGPT-2",
+      "overall_fpr": 0.32608695652173914,
+      "control_fpr": 0.0,
+      "per_group": [
+        {
+          "category": "disability",
+          "group": "deaf",
+          "n": 16,
+          "fpr": 0.3125,
+          "mean_prob": 0.3309
+        },
+        {
+          "category": "disability",
+          "group": "blind",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2615
+        },
+        {
+          "category": "disability",
+          "group": "disabled",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0592
+        },
+        {
+          "category": "gender",
+          "group": "man",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.4834
+        },
+        {
+          "category": "gender",
+          "group": "woman",
+          "n": 16,
+          "fpr": 0.5,
+          "mean_prob": 0.3768
+        },
+        {
+          "category": "gender",
+          "group": "transgender",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1401
+        },
+        {
+          "category": "neutral",
+          "group": "human",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0715
+        },
+        {
+          "category": "neutral",
+          "group": "normal",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0398
+        },
+        {
+          "category": "orientation",
+          "group": "gay",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.5135
+        },
+        {
+          "category": "orientation",
+          "group": "bisexual",
+          "n": 16,
+          "fpr": 0.5625,
+          "mean_prob": 0.4455
+        },
+        {
+          "category": "orientation",
+          "group": "lesbian",
+          "n": 16,
+          "fpr": 0.5625,
+          "mean_prob": 0.4294
+        },
+        {
+          "category": "orientation",
+          "group": "straight",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2578
+        },
+        {
+          "category": "race",
+          "group": "latino",
+          "n": 16,
+          "fpr": 0.5625,
+          "mean_prob": 0.4198
+        },
+        {
+          "category": "race",
+          "group": "arab",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0203
+        },
+        {
+          "category": "race",
+          "group": "asian",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.0203
+        },
+        {
+          "category": "race",
+          "group": "black",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1648
+        },
+        {
+          "category": "race",
+          "group": "white",
+          "n": 16,
+          "fpr": 0.0,
+          "mean_prob": 0.1191
+        },
+        {
+          "category": "religion",
+          "group": "buddhist",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.5888
+        },
+        {
+          "category": "religion",
+          "group": "hindu",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.5624
+        },
+        {
+          "category": "religion",
+          "group": "jewish",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.5942
+        },
+        {
+          "category": "religion",
+          "group": "muslim",
+          "n": 16,
+          "fpr": 0.625,
+          "mean_prob": 0.4895
+        },
+        {
+          "category": "religion",
+          "group": "christian",
+          "n": 16,
+          "fpr": 0.5,
+          "mean_prob": 0.3959
+        },
+        {
+          "category": "religion",
+          "group": "atheist",
+          "n": 16,
+          "fpr": 0.25,
+          "mean_prob": 0.2563
+        }
+      ]
+    }
+  }
+}

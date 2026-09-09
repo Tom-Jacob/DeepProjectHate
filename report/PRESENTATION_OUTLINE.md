@@ -65,11 +65,11 @@ Also report **params + ms/comment** for every model.
 
 ## Slide 6 — Robustness to obfuscation (35s)
 *Show `robustness_evasion_heatmap.png`*
-- toxic-bert baseline detection 0.93, leetspeak evasion **0.28**
+- toxic-bert baseline detection 0.930, leetspeak evasion **0.280**
   — far the hardest to evade
-- SVM trivially evaded (leetspeak evasion **0.71** — features *are* tokens)
+- SVM trivially evaded (leetspeak evasion **0.711** — features *are* tokens)
 - **bert-base-classifier — same architecture/size as toxic-bert — is nearly as
-  brittle (leetspeak evasion 0.72)**: the robustness edge tracks
+  brittle (leetspeak evasion 0.719)**: the robustness edge tracks
   toxic-bert's specific fine-tuning, not "being a BERT"
 - Bonus (Q&A): toxic-bert's robustness is direction-dependent — the same
   perturbations that barely evade a real toxic comment get a NEUTRAL comment
@@ -77,12 +77,13 @@ Also report **params + ms/comment** for every model.
 
 ## Slide 7 — Masking: the shortcut, and the exception (40s)
 *Show masking figures*
-- Mask the identity token → FPR drops to **0.00** (toxic-bert)
-  and **0.00** (SVM): a clean lexical shortcut
+- Mask the identity token → FPR drops to **0.000** for toxic-bert (from 0.087)
+  and **0.000** for the SVM (from 0.049): a clean lexical shortcut
 - **bert-base-classifier does the opposite — masking *increases* its FPR
-  (0.10 → 0.19)**: the same data-driven bias, a
+  (0.103 → 0.188)**: the same data-driven bias, a
   different mechanism per model
-- Training-time SVM masking doesn't fix FPR; costs identity-hate recall
+- Training-time SVM masking doesn't fix FPR (0.049 → 0.063) and costs
+  identity-hate recall (0.781 → 0.676)
 
 ## Slide 8 — Same checkpoint, two methods (45s) — headline slide
 *Table from report §3.10*

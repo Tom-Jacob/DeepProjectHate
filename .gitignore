@@ -1,6 +1,9 @@
 # Data (download via Kaggle — see README)
 data/raw/
-data/processed/
+data/processed/*
+# ...but keep the small result JSONs, so every number in the report is
+# verifiable from the repo without re-running anything.
+!data/processed/*.json
 
 # Model weights (download via transformers — see README)
 models/

@@ -1,0 +1,221 @@
+{
+  "target": "toxic",
+  "threshold": 0.5,
+  "quick_mode": false,
+  "seed": 211,
+  "created_at": "2026-09-09T15:07:03.242947+00:00",
+  "eval_n": {
+    "val": 800,
+    "test": 800
+  },
+  "models": {
+    "toxic-bert": {
+      "model_id": "unitary/toxic-bert",
+      "family": "BERT",
+      "specialization": "in-domain (Jigsaw)",
+      "n_params": 109486854,
+      "splits": {
+        "val": {
+          "precision": 0.9166666666666666,
+          "recall": 0.8918918918918919,
+          "f1": 0.9041095890410958,
+          "accuracy": 0.9825,
+          "roc_auc": 0.9975802248529521,
+          "pr_auc": 0.975032453475393,
+          "ms_per_comment": 212.641
+        },
+        "test": {
+          "precision": 0.6111111111111112,
+          "recall": 0.9777777777777777,
+          "f1": 0.7521367521367521,
+          "accuracy": 0.9275,
+          "roc_auc": 0.9787949921752739,
+          "pr_auc": 0.8348087234172669,
+          "ms_per_comment": 175.16
+        }
+      }
+    },
+    "bert-base-classifier": {
+      "model_id": "C:\\Users\\omerr\\OneDrive\\\u05e9\u05d5\u05dc\u05d7\u05df \u05d4\u05e2\u05d1\u05d5\u05d3\u05d4\\OMER\\\u05d0\u05e7\u05d3\u05de\u05d9\u05d4\\\u05ea\u05d5\u05d0\u05e8 \u05e9\u05e0\u05d9\\\u05d8\u05db\u05e0\u05d9\u05d5\u05df\\\u05dc\u05de\u05d9\u05d3\u05d4 \u05e2\u05de\u05d5\u05e7\u05d4 0460217\\\u05e4\u05e8\u05d5\u05d9\u05e7\u05d8\\DeepProjectHate\\models\\bert-base-toxic",
+      "family": "BERT",
+      "specialization": "generic, fine-tuned by us (classifier head)",
+      "n_params": 109483778,
+      "splits": {
+        "val": {
+          "precision": 0.7976190476190477,
+          "recall": 0.9054054054054054,
+          "f1": 0.8481012658227848,
+          "accuracy": 0.97,
+          "roc_auc": 0.9852021442930534,
+          "pr_auc": 0.9176015661539771,
+          "ms_per_comment": 247.544
+        },
+        "test": {
+          "precision": 0.5579710144927537,
+          "recall": 0.8555555555555555,
+          "f1": 0.6754385964912282,
+          "accuracy": 0.9075,
+          "roc_auc": 0.9612050078247263,
+          "pr_auc": 0.7913446955944171,
+          "ms_per_comment": 278.294
+        }
+      }
+    },
+    "bert-base-mlm-prompt": {
+      "model_id": "bert-base-uncased",
+      "family": "BERT",
+      "specialization": "generic, zero-shot (masked-LM prompt)",
+      "n_params": 109514298,
+      "splits": {
+        "val": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "accuracy": 0.905,
+          "roc_auc": 0.7281847963666146,
+          "pr_auc": 0.208330958284103,
+          "ms_per_comment": 282.725
+        },
+        "test": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "accuracy": 0.885,
+          "roc_auc": 0.7217683881064163,
+          "pr_auc": 0.2266061741549401,
+          "ms_per_comment": 283.234
+        }
+      }
+    },
+    "tfidf-svm": {
+      "model_id": "tfidf+linearsvm",
+      "family": "non-neural",
+      "specialization": "non-neural",
+      "n_params": 50000,
+      "splits": {
+        "val": {
+          "precision": 0.8305084745762712,
+          "recall": 0.6621621621621622,
+          "f1": 0.7368421052631579,
+          "accuracy": 0.95625,
+          "roc_auc": 0.9494266994266994,
+          "pr_auc": 0.8176329854987318,
+          "ms_per_comment": 0.155
+        },
+        "test": {
+          "precision": 0.6956521739130435,
+          "recall": 0.7111111111111111,
+          "f1": 0.7032967032967032,
+          "accuracy": 0.9325,
+          "roc_auc": 0.957699530516432,
+          "pr_auc": 0.7844849467833863,
+          "ms_per_comment": 0.147
+        }
+      }
+    },
+    "distilgpt2-d1": {
+      "model_id": "distilgpt2",
+      "family": "DistilGPT-2",
+      "specialization": "decoder yes/no prompt (zero-shot)",
+      "n_params": 81912576,
+      "splits": {
+        "val": {
+          "precision": 0.07065217391304347,
+          "recall": 0.527027027027027,
+          "f1": 0.12460063897763578,
+          "accuracy": 0.315,
+          "roc_auc": 0.3805747896656988,
+          "pr_auc": 0.07119354293725899,
+          "ms_per_comment": 533.336
+        },
+        "test": {
+          "precision": 0.09302325581395349,
+          "recall": 0.6666666666666666,
+          "f1": 0.16326530612244897,
+          "accuracy": 0.23125,
+          "roc_auc": 0.3885915492957746,
+          "pr_auc": 0.09986089357904282,
+          "ms_per_comment": 648.601
+        }
+      }
+    },
+    "distilgpt2-d2": {
+      "model_id": "distilgpt2",
+      "family": "DistilGPT-2",
+      "specialization": "decoder fill-in-blank (zero-shot)",
+      "n_params": 81912576,
+      "splits": {
+        "val": {
+          "precision": 0.0925,
+          "recall": 1.0,
+          "f1": 0.16933638443935925,
+          "accuracy": 0.0925,
+          "roc_auc": 0.5570508525053979,
+          "pr_auc": 0.09754769776937389,
+          "ms_per_comment": 660.891
+        },
+        "test": {
+          "precision": 0.1125,
+          "recall": 1.0,
+          "f1": 0.20224719101123595,
+          "accuracy": 0.1125,
+          "roc_auc": 0.45671361502347413,
+          "pr_auc": 0.09784264814579192,
+          "ms_per_comment": 645.281
+        }
+      }
+    },
+    "distilbert-student": {
+      "model_id": "distilbert-student",
+      "family": "DistilBERT",
+      "specialization": "KD student (toxic-bert \u2192 DistilBERT, 6-label)",
+      "n_params": 66958086,
+      "splits": {
+        "val": {
+          "precision": 0.8260869565217391,
+          "recall": 0.7702702702702703,
+          "f1": 0.7972027972027972,
+          "accuracy": 0.96375,
+          "roc_auc": 0.9858908495272132,
+          "pr_auc": 0.9014571116467448,
+          "ms_per_comment": 263.824
+        },
+        "test": {
+          "precision": 0.6016260162601627,
+          "recall": 0.8222222222222222,
+          "f1": 0.6948356807511736,
+          "accuracy": 0.91875,
+          "roc_auc": 0.9658059467918623,
+          "pr_auc": 0.7861847808651498,
+          "ms_per_comment": 263.267
+        }
+      }
+    },
+    "distilgpt2-d1-ft": {
+      "model_id": "distilgpt2-d1-ft",
+      "family": "DistilGPT-2",
+      "specialization": "decoder yes/no (fine-tuned on toxic)",
+      "n_params": 81912576,
+      "splits": {
+        "val": {
+          "precision": 0.4378698224852071,
+          "recall": 1.0,
+          "f1": 0.6090534979423868,
+          "accuracy": 0.88125,
+          "roc_auc": 0.9816190157099247,
+          "pr_auc": 0.857784206963238,
+          "ms_per_comment": 1647.643
+        },
+        "test": {
+          "precision": 0.3771186440677966,
+          "recall": 0.9888888888888889,
+          "f1": 0.5460122699386503,
+          "accuracy": 0.815,
+          "roc_auc": 0.9614162754303599,
+          "pr_auc": 0.7316217114113085,
+          "ms_per_comment": 19438.063
+        }
+      }
+    }
+  }
+}

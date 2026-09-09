@@ -2,7 +2,8 @@
 
 How the code is organized, the core abstraction, and how to run every experiment
 **both from the CLI and programmatically** (Python / notebook). For results and
-the narrative see [`PROGRESS.md`](PROGRESS.md); for project context see
+the narrative and all numbers see [`../report/report_draft.md`](../report/report_draft.md);
+for project context see
 [`../CLAUDE.md`](../CLAUDE.md).
 
 ---

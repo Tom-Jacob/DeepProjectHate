@@ -1,0 +1,84 @@
+{
+  "n": 800,
+  "split": "test",
+  "seed": 211,
+  "threshold": 0.5,
+  "agreement": 0.8275,
+  "classifier_vs_gold_acc": 0.9075,
+  "prompt_vs_gold_acc": 0.885,
+  "n_disagree": 138,
+  "disagreement_cases": [
+    {
+      "comment_text": ":31 hours only for that?!?! you guys got to kidding. Did you get raped your brain out or what?!?!",
+      "toxic": 1,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "== lile sex in silk == \n\n gay boy",
+      "toxic": 1,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "And do you think I give a flying fuck what some eurotrash asshole thinks?",
+      "toxic": 1,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "< Hey fuck you wikipedia! I do exist!",
+      "toxic": 1,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "Those bastards at BetUS are editing this article and using it as an advertisement for their dishonest sportsbook. \n There have been several extremely late and insufficient payments",
+      "toxic": 0,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "You have failed to provide the proof but asked for 10 sources? I gave you mine! For easier finding, go to your obese Mariah's albums discography and simply click IPFI of the overall albums sales number and list! There you have it.  \n\n You are such a joke! And you are not making it any different! You are the one who says the same thing over and over again like Mariah sings! \n\n Again, Mariah can take one billion of the POLITICAL World Music Awards without being based on the facts! It's nothing! And her record company can say that she may have sold 1 trillion albums in your dream world by becoming the best selling! \n\n in this real world, Madonna remains the best selling female artist of all time! And Nana is right behind! Mariah is short of 40 mill albums behind Madonna's! She hasn't come close! so wait and keep following and watching Madonna's exhilarating ride! \n\n Deal with it! And don't forget to do your homework, poor Mariah maniac!",
+      "toxic": 0,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "all my sons looks interesting and i want to read it you fuckers!!!! if you have seen the play, read the script...let me know bitches!",
+      "toxic": 1,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "== You are a massive wang == \n\n tool",
+      "toxic": 0,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": ". \n\n No they should, that was fair comment. Fool",
+      "toxic": 0,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "\" \n\n  \n == Awesome Quote == \n \"\"Not all idiots are boys, but all boys are idiots!!\"\" \n \"",
+      "toxic": 1,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": "== Natalie The Fraud == \n\n Heard a rumor from someone once that the girl is an immature, malicious hot-head, and that the girl we see is only one of the roles that she plays as an actress.  In a word, she is a total fraud. Daniel Cervoni",
+      "toxic": 0,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    },
+    {
+      "comment_text": ":I made comments in reply to yours explaining my revert, and you simply reverted my edits that I made without replying to them. I explained why I thought your views do not matter - stop misinterpreting me. You are behaving like a bully and your behaviour is unacceptable for Wikipedia.",
+      "toxic": 0,
+      "pred_clf": 1,
+      "pred_prompt": 0
+    }
+  ]
+}

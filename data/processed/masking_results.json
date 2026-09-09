@@ -1,0 +1,52 @@
+{
+  "threshold": 0.5,
+  "seed": 211,
+  "created_at": "2026-09-09T21:30:44.555843+00:00",
+  "inference_ablation": {
+    "toxic-bert": {
+      "fpr_with_identity": 0.08695652173913043,
+      "fpr_masked": 0.0,
+      "fpr_reduction": 0.08695652173913043,
+      "mean_prob_with_identity": 0.10477348415509408,
+      "mean_prob_masked": 0.010183996996088155
+    },
+    "bert-base-classifier": {
+      "fpr_with_identity": 0.10326086956521739,
+      "fpr_masked": 0.1875,
+      "fpr_reduction": -0.08423913043478261,
+      "mean_prob_with_identity": 0.13131517810087762,
+      "mean_prob_masked": 0.15652864803996636
+    },
+    "bert-base-mlm-prompt": {
+      "fpr_with_identity": 0.0,
+      "fpr_masked": 0.0,
+      "fpr_reduction": 0.0,
+      "mean_prob_with_identity": 0.0579379369734417,
+      "mean_prob_masked": 0.0325795816606842
+    },
+    "tfidf-svm": {
+      "fpr_with_identity": 0.04891304347826087,
+      "fpr_masked": 0.0,
+      "fpr_reduction": 0.04891304347826087,
+      "mean_prob_with_identity": 0.1060523892854909,
+      "mean_prob_masked": 0.05615766115054703
+    },
+    "distilbert-student": {
+      "fpr_with_identity": 0.008152173913043478,
+      "fpr_masked": 0.0,
+      "fpr_reduction": 0.008152173913043478,
+      "mean_prob_with_identity": 0.028891091198918573,
+      "mean_prob_masked": 0.018430367359542288
+    }
+  },
+  "svm_training_masking": {
+    "identity_fpr_before": 0.04891304347826087,
+    "identity_fpr_after": 0.0625,
+    "identity_hate_recall_before": 0.7808988764044944,
+    "identity_hate_recall_after": 0.675561797752809,
+    "toxic_recall_before": 0.6594417077175698,
+    "toxic_recall_after": 0.645320197044335,
+    "n_identity_hate": 712,
+    "n_toxic": 6090
+  }
+}

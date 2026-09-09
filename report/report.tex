@@ -1,393 +1,901 @@
-\documentclass[11pt,a4paper]{article}
-
-\usepackage[margin=2.2cm]{geometry}
-\usepackage[utf8]{inputenc}
+\documentclass[10pt,a4paper]{article}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage[margin=0.7in]{geometry}
 \usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}\usepackage{microtype}}{\usepackage[expansion=false]{microtype}}
 \usepackage{amsmath,amssymb}
-\usepackage{booktabs}
 \usepackage{graphicx}
-\usepackage{hyperref}
-\usepackage{enumitem}
-\usepackage{xcolor}
-\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{subcaption}
 \usepackage{float}
-\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
 
-\hypersetup{colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black,urlcolor=blue!60!black}
-
+% - spacing: airy, not squeezed --------
+\linespread{1.0}
+\setlength{\parskip}{0.34em}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{6pt}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+\captionsetup[sub]{font=small}
+\titlespacing*{\section}{0pt}{1.15em}{0.45em}
+\titlespacing*{\subsection}{0pt}{0.85em}{0.3em}
+\setlist[itemize]{itemsep=2pt,topsep=3pt,parsep=0pt,leftmargin=1.3em}
+\setlist[enumerate]{itemsep=2pt,topsep=3pt,parsep=0pt,leftmargin=1.5em}
 
-\title{\textbf{Words That Harm: Architectures, Robustness, and Fairness\\in Toxic-Comment Detection}}
-\author{Omer Ramon \and Tom Jacob\\[4pt]
-\normalsize Technion --- EE046211 Deep Learning}
-\date{}
+\definecolor{accent}{HTML}{1F3A5F}
+\definecolor{rowgray}{HTML}{F2F4F7}
+\titleformat{\section}{\normalfont\large\bfseries\color{accent}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\color{accent}}{\thesubsection}{0.6em}{}
 
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.75}
+\renewcommand{\textfraction}{0.06}
+\renewcommand{\floatpagefraction}{0.80}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcommand{\tbd}{\textcolor{red}{\textbf{TBD}}}
+
+% ============================================================================
 \begin{document}
-\maketitle
 
-%----------------------------------------------------------------------
-\begin{abstract}
-We audit toxic-comment detectors on the Jigsaw 2018 dataset across three architectures evaluated on the \textbf{same data}: a specialized BERT encoder (\texttt{unitary/toxic-bert}), a non-neural TF-IDF + linear-SVM baseline we train ourselves, and a DistilGPT-2 decoder used as a zero-shot classifier via prompting. Rather than chasing accuracy, we stress-test each model for \textbf{identity bias}, \textbf{robustness to obfuscation}, and the \textbf{mechanism} behind its errors. We find that (i)~toxicity detection is largely lexical---a linear model matches the encoder's F1 and beats its ranking quality at ${\sim}1700\times$ lower latency; (ii)~the encoder's true advantage is robustness to obfuscation, not accuracy; (iii)~generative prompting with a small LM is near-chance and degenerate; and (iv)~all models share a data-driven identity bias that a masking probe traces to a single-token lexical shortcut.
-\end{abstract}
-
-%----------------------------------------------------------------------
+\begin{center}
+{\LARGE\bfseries Deep Learning 046211\\Course Project - Words That Harm}\\[0.35em]
+{Omer Ramon (318650306) \quad$\cdot$\quad Tom Jacob (314617929)}\\[0.25em]
+{\small\texttt{github.com/Tom-Jacob/DeepProjectHate}}
+\end{center}
+\vspace{0.6em}
+\hrule
 \section{Introduction}
 
-\textbf{Goal.} Compare fundamentally different classification paradigms on toxic comment detection, and characterize \emph{why} they fail, not just how often.
+\subsection{Motivation and problem statement}
+\label{sec:motivation}
 
-\textbf{Motivation.} Content-moderation models are deployed at scale; their errors (missed hate, or over-flagging neutral mentions of a group) have real social cost. A benchmark F1 hides both failure modes.
-
-\textbf{Prior work.} The Jigsaw Toxic Comment Classification Challenge (Kaggle, 2018) established the dataset and multi-label task. Dixon et al.\ (2018) introduced identity-mention templates to measure unintended bias. We build on these by comparing an encoder classifier, a non-neural baseline, and decoder prompting under a single fair protocol, adding perturbation stress tests and a masking intervention.
-
-\textbf{Hypotheses.}
-\begin{itemize}[nosep]
-  \item[\textbf{H1}] The specialized encoder trades fairness for accuracy.
-  \item[\textbf{H2}] Smaller/compressed models lose accuracy \emph{and} amplify bias.
-  \item[\textbf{H3}] Decoder prompting is weaker and more format-sensitive than a discriminative head.
+Forums are open by design, and that openness is what lets a first-hand account reach an
+audience it would otherwise never have. It is also what makes them exploitable, and the
+resulting abuse is not evenly distributed: it concentrates on ethnic and religious
+minorities, people with disabilities, LGBTQ+ users and women, who pay for it by being
+driven out of a space they had an equal claim to. Moderating by hand does not scale, so
+classifiers are deployed either to rank likely violations for a human or to auto-moderate
+with no human in the loop - roles that tolerate errors very differently, since a sorting
+tool can afford false alarms and an auto-moderator cannot. Both are usually reported with
+a single benchmark number. Three difficulties make that number misleading:
+\begin{itemize}
+    \item \textbf{Class imbalance.} Only $\sim$10\% of Jigsaw comments are toxic, so ``never
+toxic'' scores 90\% accuracy while detecting nothing.
+\item \textbf{Context outside the input.} \emph{``You've wasted enough of everyone's time
+here. Give it up.''} closes a dispute when an administrator writes it to a serial vandal,
+and drives off a newcomer when three regulars write it in sequence to someone who merely
+disagreed. The text is identical; the speaker and the history are not, and neither is in
+the input.
+\item \textbf{Adversarial users.} Evaders write \texttt{s7up1d} or \texttt{s t u p i d}. A
+model whose features are surface tokens breaks immediately, and sub-word tokenization is
+only a partial defense.
 \end{itemize}
 
-%----------------------------------------------------------------------
-\section{Method}
+This report is organized around \emph{which} error a model makes rather than how many. A
+false negative is a safety failure - \emph{``Shut up you m0r0n''} reaching its target - and
+a false positive is a fairness failure - \emph{``I am a gay man and I edited this page''}
+removed as abuse. The two are measured by different probes and carry different costs.
+\subsection{What this project does}
+\label{sec:overview}
 
-\subsection{Task and Data}
+We audit rather than rank. Eight configurations spanning four families
+(Table~\ref{tab:models}) - a specialized BERT encoder, a TF-IDF/linear-SVM baseline with
+no network at all, a prompted and then fine-tuned DistilGPT-2 decoder, and a distilled
+DistilBERT student - are evaluated through a single interface, each returning
+$P(\text{toxic})$, on one seeded test subset and the same hardware. The eighth
+configuration is the control: \texttt{bert-base-uncased} used two ways, fine-tuned with a
+classification head and prompted zero-shot through its own masked-LM head.
+\texttt{toxic-bert} against DistilGPT-2 changes the decision mechanism and the network
+type at once, so a win tells you nothing about which one won; the two
+\texttt{bert-base-uncased} configurations share every pretrained weight, leaving the
+mechanism as the only variable and therefore the only thing a gap between them can be
+blamed on. Each model then goes through three probes - accuracy versus cost, a
+368-sentence identity probe on which every positive is by construction a false positive,
+and a perturbation suite (\S\ref{sec:setup}) - plus a masking intervention that asks
+where the bias sits.
 
-We use the Jigsaw Toxic Comment Classification Challenge (Kaggle, 2018). Each Wikipedia talk-page comment carries six binary labels: \emph{toxic}, \emph{severe\_toxic}, \emph{obscene}, \emph{threat}, \emph{insult}, \emph{identity\_hate}. Our primary target is the binary \texttt{toxic} label; the full six labels are retained for the distillation and encoder--decoder agreement experiments. We split \texttt{train.csv} 85/15 stratified into train/val (135{,}635 / 23{,}936) and use the labeled \texttt{test.csv} rows as test (63{,}978).
+\textbf{Hypotheses.} \textbf{H1.} Identity bias is learned from labeled task data, so the
+model specialized on it over-flags neutral identity mentions more than a non-neural
+baseline trained on the same data. \textbf{H2.} Distillation preserves the teacher's
+accuracy but amplifies its identity bias, the student having fewer parameters with which
+to represent the exceptions. \textbf{H3.} A trained discriminative head beats zero-shot
+prompting at this scale, independently of whether the network is an encoder or a decoder.
+\S\ref{sec:results} reports the numbers.
 
-\subsection{Evaluation Metrics}
+\subsection{Prior work}
 
-All models are reduced to a single scalar $P(\text{toxic})$ via a unified \texttt{predict\_toxic\_proba} interface. We binarize at threshold~0.5 unless stated otherwise.
+The Jigsaw Toxic Comment Classification Challenge~\cite{jigsaw2018} established the
+dataset and the multi-label formulation. Dixon et al.~\cite{dixon2018} introduced
+identity-mention templates for measuring unintended bias, the methodology our fairness
+probe follows. \texttt{toxic-bert} is Unitary's Detoxify release~\cite{detoxify}; BERT
+and its masked-language pretraining objective are due to Devlin et
+al.~\cite{devlin2019}, the distilled variants to Sanh et al.~\cite{sanh2019}, and the
+distillation objective itself to Hinton et al.~\cite{hinton2015}. We build on these by
+comparing an encoder classifier, a non-neural baseline and decoder prompting under a
+single protocol, and by adding a perturbation stress test, a masking intervention, and a
+same-checkpoint control.
 
-\textbf{Precision} $= \mathrm{TP}/(\mathrm{TP}+\mathrm{FP})$.
-Of all comments the model flags as toxic, what fraction truly is? Low precision means many false alarms---a direct cost in content moderation.
-
-\textbf{Recall (sensitivity)} $= \mathrm{TP}/(\mathrm{TP}+\mathrm{FN})$.
-Of all truly toxic comments, what fraction does the model catch? Low recall means toxic content reaches users.
-
-\textbf{F1-score} $= 2PR/(P+R)$, the harmonic mean of precision and recall. The harmonic mean penalizes models that sacrifice one for the other, which matters on the imbalanced Jigsaw set (${\sim}$10\% toxic).
-
-\textbf{False Positive Rate (FPR)} $= \mathrm{FP}/(\mathrm{FP}+\mathrm{TN})$.
-Among non-toxic comments, how often does the model wrongly flag one? We use FPR in the identity fairness probe (\S\ref{sec:fairness}): a model that wrongly flags ``I am Muslim'' has high FPR on the \texttt{muslim} identity group.
-
-\textbf{False Discovery Rate (FDR)} $= \mathrm{FP}/(\mathrm{FP}+\mathrm{TP}) = 1 - \text{Precision}$.
-Of all flagged comments, what fraction is actually benign? FDR directly measures the user-facing harm of over-moderation.
-
-\textbf{PR-AUC} (area under the precision--recall curve). Summarizes ranking quality across all thresholds. More informative than ROC-AUC on imbalanced data because it focuses on the positive (toxic) class.
-
-\textbf{ROC-AUC} (area under the ROC curve, plotting TPR vs.\ FPR). Measures overall discriminative ability. We report it alongside PR-AUC for completeness.
-
-For each model we also report \textbf{parameter count} and \textbf{inference latency} (ms/comment, CPU) to ensure capacity-fair comparison.
-
-\subsection{Models}
-
-We compare five models spanning three architectural families. Every model exposes the same \texttt{predict\_toxic\_proba} interface so all evaluations are architecture-agnostic.
-
-\begin{table}[H]
+\section{Models under comparison}
+\begin{table}[t]
 \centering
-\caption{Model roster.}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l l l c L@{}}
+\toprule
+\textbf{ID} & \textbf{Model} & \textbf{Family} & \textbf{Params} & \textbf{Mechanism} \\
+\midrule
+E2    & \texttt{toxic-bert}            & BERT encoder            & 109M & Stages 1+2 (Unitary, full Jigsaw), 6 sigmoid heads \\
+\rowcolor{rowgray}
+E1    & \texttt{bert-base-classifier}  & BERT encoder            & 109M & Stages 1+2 (ours: 12k rows, CPU), 1 sigmoid head \\
+E1-p  & \texttt{bert-base-mlm-prompt}  & BERT encoder (0-shot)   & 109M & Stage 1 only, native MLM head, untrained \\
+\rowcolor{rowgray}
+E0    & \texttt{tfidf-svm}             & Non-neural              & $\sim$50k & TF-IDF + calibrated LinearSVC \\
+D1    & \texttt{distilgpt2-d1}         & GPT-2 decoder (0-shot)  & 82M  & Yes/no prompt, log-prob comparison \\
+\rowcolor{rowgray}
+D2    & \texttt{distilgpt2-d2}         & GPT-2 decoder (0-shot)  & 82M  & Fill-in-blank prompt, log-prob comparison \\
+D1-ft & \texttt{distilgpt2-d1-ft}      & GPT-2 decoder           & 82M  & D1 fine-tuned on answer tokens (20k, 4 ep.) \\
+\rowcolor{rowgray}
+S1    & \texttt{distilbert-student}    & DistilBERT              & 67M  & Soft-KD from E2 ($T{=}2$, $\alpha{=}0.7$), 6 heads \\
+\bottomrule
+\end{tabularx}
+\caption{The eight configurations. E1 and E1-p are the \emph{same} pretrained checkpoint
+used two different ways.}
 \label{tab:models}
-\small
-\begin{tabular}{@{}llllp{5.2cm}@{}}
-\toprule
-\textbf{ID} & \textbf{Model} & \textbf{Family} & \textbf{Params} & \textbf{Classification mechanism} \\
-\midrule
-E2 & toxic-bert & BERT encoder & 109M & 6 sigmoid heads; we read the \texttt{toxic} logit \\
-E0 & TF-IDF + LinearSVM & Non-neural & ${\sim}$50k & TF-IDF (1--2 grams, 50k features) + calibrated LinearSVC \\
-D1 & DistilGPT-2 (zero-shot) & GPT-2 decoder & 82M & Prompted yes/no; log-prob of \texttt{yes} vs.\ \texttt{no} \\
-D1-ft & DistilGPT-2 (fine-tuned) & GPT-2 decoder & 82M & Same prompt; causal LM loss on answer tokens only \\
-S1 & DistilBERT student & DistilBERT & 67M & Soft KD ($T{=}2$, $\alpha{=}0.7$); 6 sigmoid heads \\
-\bottomrule
-\end{tabular}
 \end{table}
+Table~\ref{tab:models} lists the eight configurations in this project. The rest of this section explains what each one
+is and why it is in the comparison.
+\subsection{One checkpoint, three configurations}
+\label{sec:onearch}
 
-\textbf{toxic-bert (E2).} BERT-base (12 transformer layers, 768 hidden, 12 heads) fine-tuned by Unitary on Jigsaw data with 6 sigmoid classification heads, one per toxicity label. We use the pre-trained checkpoint from HuggingFace and read the \texttt{toxic} logit through a sigmoid to obtain $P(\text{toxic})$.
+Three of our configurations are literally the same network: a $12$-layer transformer
+encoder, width $768$, $12$ heads, $109$M parameters, one $30{,}522$-token WordPiece
+vocabulary.
+Swapping one for another changes no code. What differs is \textbf{which training stages were run, and on what data}: (1)
+\emph{generic pretraining} - masked-word prediction on Wikipedia and
+\href{https://en.wikipedia.org/wiki/BookCorpus}{BookCorpus}, producing
+\texttt{bert-base-uncased}~\cite{devlin2019}; and (2) \emph{supervised fine-tuning} - a
+classification head and the encoder beneath it, trained together on labelled task data.
+Framing the comparison this way is what makes \S\ref{sec:results} interpretable:
+differences between our encoders are attributable to specific training stages rather than
+to ``being a bigger model''.
 
-\textbf{TF-IDF + LinearSVM (E0).} A non-neural baseline we train ourselves on the same Jigsaw split. Text is vectorized with TF-IDF (unigrams + bigrams, max 50{,}000 features), then classified with a calibrated linear support vector machine (\texttt{CalibratedClassifierCV} wrapping \texttt{LinearSVC}). Calibration gives us well-formed probabilities rather than raw SVM scores.
+\begin{figure}[H]
+\centering
+\footnotesize
+\begin{tikzpicture}[
+  box/.style={draw,rounded corners=3pt,align=center,inner sep=4pt,minimum height=8mm,line width=0.4pt},
+  root/.style={box,fill=gray!8,text width=31mm},
+  op/.style={box,fill=orange!8,text width=45mm},
+  keep/.style={box,fill=teal!8,text width=45mm},
+  final/.style={box,fill=violet!8,text width=39mm,font=\footnotesize\bfseries},
+  a/.style={-{Stealth[length=4pt]},line width=0.4pt}
+]
+\node[root] (ck) at (0,0) {\texttt{bert-base-uncased}\\[1pt]\scriptsize 12 layers, 109M params, ships with an MLM head};
 
-\textbf{DistilGPT-2 (D1/D2).} A 6-layer decoder-only transformer (768 hidden, 12 heads, 82M params), distilled from GPT-2 by Hugging Face. It is a \emph{language model}, not a classifier---we repurpose it via prompting. In the \textbf{D1} method we append \texttt{"Is the following comment toxic? Answer yes or no. Comment: \{text\} Answer:"} and compare the log-probability of the continuation \texttt{yes} vs.\ \texttt{no}. In \textbf{D2} we use a fill-in-blank prompt and score \texttt{toxic} vs.\ \texttt{not toxic}.
+\node[keep] (k1) at (5.7,1.7)  {keep the MLM head, train nothing\\[1pt]\scriptsize zero-shot read-out};
+\node[op]   (k2) at (5.7,0)    {new classification head (769 params), fine-tune all weights\\[1pt]\scriptsize ours: 12k rows, CPU};
+\node[op]   (k3) at (5.7,-1.7) {new classification head (6 outputs), fine-tune all weights\\[1pt]\scriptsize Unitary: 159k rows, GPU};
 
-\textbf{DistilGPT-2 D1-ft.} The same D1 architecture, but fine-tuned with causal LM loss restricted to the answer tokens (\texttt{yes}/\texttt{no}) on 20k stratified Jigsaw train comments (4 epochs, best val answer accuracy~0.942). At eval time the scoring path is identical to zero-shot D1.
+\node[final] (o1) at (11.6,1.7)  {bert-base-mlm-prompt\\[1pt]\scriptsize\mdseries E1-p, zero-shot};
+\node[final] (o2) at (11.6,0)    {bert-base-classifier\\[1pt]\scriptsize\mdseries E1, supervised};
+\node[final] (o3) at (11.6,-1.7) {toxic-bert\\[1pt]\scriptsize\mdseries E2, supervised};
 
-\textbf{DistilBERT student (S1).} A 6-layer DistilBERT (67M) initialized from \texttt{distilbert-base-uncased}, trained via knowledge distillation from frozen toxic-bert. The loss combines soft KD (sigmoid KL divergence at temperature $T{=}2$, weight $\alpha{=}0.7$) with hard multilabel BCE ($1{-}\alpha{=}0.3$), applied to all six Jigsaw labels. Trained on 20k examples for 4 epochs.
+\draw[line width=0.4pt] (ck.east) -- (2.6,0);
+\draw[line width=0.4pt] (2.6,1.7) -- (2.6,-1.7);
+\draw[a] (2.6,1.7) -- (k1.west);
+\draw[a] (2.6,0) -- (k2.west);
+\draw[a] (2.6,-1.7) -- (k3.west);
+\draw[a] (k1) -- (o1); \draw[a] (k2) -- (o2); \draw[a] (k3) -- (o3);
+\end{tikzpicture}
+\caption{Three configurations derived from one downloaded checkpoint. They diverge only in
+what is attached on top and whether anything is trained. E1-p versus E1 varies the read-out
+mechanism with the weights held fixed; E1 versus E2 varies the amount of supervision with
+the mechanism held fixed.}
+\label{fig:branch}
+\end{figure}
 
-\subsection{Perturbation Methods}
+\subsection{The encoder architecture, and what the three configurations do with it}
 
-To test robustness we take comments already flagged as toxic and apply surface-level noise that a human still reads as toxic. A robust detector should keep flagging them; an \textbf{evasion} is when the perturbed comment drops below the 0.5 threshold:
-\[
-  \text{Evasion rate} = \frac{|\{x : P_{\text{orig}}(x) \ge 0.5 \;\wedge\; P_{\text{pert}}(x) < 0.5\}|}{|\{x : P_{\text{orig}}(x) \ge 0.5\}|}
-\]
+All three encoder configurations run the identical network: WordPiece tokenisation
+over a $30{,}522$-token vocabulary with \texttt{[CLS]} prefixed, twelve transformer
+blocks of multi-head self-attention and position-wise FFN, and one contextual vector
+$h\in\mathbb{R}^{768}$ per position. Two properties carry weight later. Sub-word
+splitting means an unknown word never becomes ``unknown'' - \texttt{stuuupiiid}
+merely breaks into more pieces than \texttt{stupid} (\S\ref{sec:robust}). And
+attention is \textbf{bidirectional}: every token's representation is built from the
+whole comment, which is what makes a masked position readable as a summary of it.
 
-Higher evasion = more brittle model. The six perturbations:
+Nothing in that stack produces a decision, so a head is attached on top to map one
+position's vector to what the task needs - and the head, not the encoder, is what differs
+across the three configurations (Fig.~\ref{fig:branch}).
+
+\textbf{The head BERT ships with.} Stage-1 pretraining trained a \emph{masked-LM head}: a
+linear layer $\mathbb{R}^{768}\to\mathbb{R}^{30522}$, one logit per vocabulary word, used
+to predict tokens hidden during training. Predicting a masked word is a $30{,}522$-way
+classification, not generation - no sampling and no decoder are involved.
+
+\textbf{E1-p keeps that head.} No new parameters, no gradient step, no labels. We wrap the
+comment in a template ending in \texttt{[MASK]}, run the encoder, and read the pretrained
+head's logits at the masked position - but only two of the $30{,}522$, for one toxic and
+one benign filler word $v_+,v_-$:
+\begin{equation}
+P(\text{toxic}\mid x)=\frac{\exp \ell_{v_+}}{\exp \ell_{v_+}+\exp \ell_{v_-}},
+\qquad \ell_v = \log p_\theta\bigl(v \mid \text{prompt}(x)\bigr).
+\label{eq:mlmprompt}
+\end{equation}
+
+\textbf{E1 discards it} and attaches a randomly-initialized linear head $z = Wh+b$ on the
+\texttt{[CLS]} vector - $769$ parameters on top of $109$M - which is meaningless until
+stage 3 trains it together with every weight beneath it. Jigsaw's labels are not mutually
+exclusive (a comment can be both an insult and a threat), so the $K$ outputs are
+independent sigmoids rather than a softmax, and the objective is the mean binary
+cross-entropy:
+\begin{equation}
+\mathcal{L}_{\text{BCE}} = -\frac{1}{K}\sum_{k=1}^{K}
+\Bigl[y_k \log \sigma(z_k) + (1-y_k)\log\bigl(1-\sigma(z_k)\bigr)\Bigr].
+\label{eq:bce}
+\end{equation}
+
+\textbf{E2 is the same procedure at a different scale}: the identical checkpoint with the
+same style of head, fine-tuned by Unitary on the full dataset with GPU resources and
+hyper-parameter search, and with $K=6$ rather than $K=1$ - one sigmoid per Jigsaw label.
+In Jigsaw \texttt{toxic} is the umbrella label and the other five refine it, so we read
+$P(\text{toxic})=\sigma(z_{\texttt{toxic}})$ directly rather than OR-ing the sub-labels
+together. E1 is trained on that same umbrella label with $K=1$, so E1 and E2 answer the
+identical question and their scores are directly comparable. The full six are used only in
+distillation (\S\ref{sec:kd}), where the student matches the teacher's soft outputs on all
+labels.
+
+
+
+\subsection{The decoder architecture, and what the three prompting variants do with it}
+
+\textbf{What GPT-2 computes, and how it differs from BERT.} DistilGPT-2, the
+distilled variant of GPT-2~\cite{radford2019}, is built from the
+same transformer blocks, but its attention is \textbf{causal}: a token may attend only to tokens \textbf{before it}, never after. That restriction is what makes it a language model - it can
+be trained to predict the next token at every position simultaneously, giving
+$p_\theta(x_t \mid x_{<t})$. Two consequences matter here. First, the representation at the final position summaries only the text to its left, so there is no \texttt{[CLS]}-style
+slot that sees the whole input at once. Second, the only head it ships with is a next-token head over the vocabulary. \textbf{There is no classification head anywhere in the model}. DistilGPT-2
+is the distilled $6$-layer, $82$M-parameter variant.
+
+To extract a decision without a classifier head, we're using the exact format as in
+Eq.~\eqref{eq:mlmprompt}, but at the next-token position rather than a masked one: append a question to the comment, take the two vocabulary logits corresponding to the two possible answers, and softmax over that pair. The three variants differ only in the prompt and in whether any training occurred.
+
+\textbf{D1 asks directly.} The comment is followed by a yes/no question, and we compare $\ell_{\texttt{yes}}$ against $\ell_{\texttt{no}}$ at the next-token position. Zero-shot - no training of any kind.
+
+\textbf{D2 reframes it as completion.} Instead of a question, the prompt ends mid-sentence so that the natural continuation is a label word, and we compare those two words' logits. Same model, same weights, different phrasing - which is what makes the D1/D2 pair a measure of prompt sensitivity rather than of capability.
+To complete this part, we introduce also D1-ft -  It fine-tunes D1's prompt format with causal cross-entropy restricted to the answer token:
+\begin{equation}
+\mathcal{L} = -\log p_\theta\bigl(a^{\star}\mid \mathrm{prompt}(x)\bigr),
+\qquad a^{\star}\in\{\texttt{yes},\texttt{no}\},
+\end{equation}
+so the model is told which answer is correct without any architectural change: still a causal decoder, still answering through vocabulary logits, still no classification head. This separates ``decoders cannot do this'' from ``this decoder was never told what to do''.
+
+Because the context window is $1024$ tokens, prompts are truncated from the left, preserving the tail on which the next-token prediction conditions - truncating from the right would remove the question itself.
+
+\subsection{Non-neural floor (E0)}
+E0 uses no neural network at all. A comment becomes a $50$k-entry vector of TF-IDF-weighted
+counts over single words and adjacent pairs, so \emph{shut up} carries weight that neither
+\emph{shut} nor \emph{up} does alone. Word order beyond two neighbours, grammar and context
+are discarded, and every entry is an exact string match, so \emph{an idiot} and \emph{an
+id10t} are unrelated features. That vector feeds a linear SVM, trained under the squared-hinge
+objective with $L_2$ regularization,
+$\min_{w,b}\tfrac12\|w\|_2^2 + C\sum_i \max\bigl(0,1-y_i(w^{\top}x_i+b)\bigr)^2$.
+The SVM outputs a signed distance from its decision boundary rather than a probability, so we
+fit Platt scaling $P(\text{toxic}\mid x)=\sigma\bigl(a\,(w^{\top}x+b)+c\bigr)$ on held-out data
+so that $0.5$ corresponds to a genuine coin-flip case.
+
+Its features are surface tokens, which makes it an interpretable probe: whatever E0 achieves
+is, by construction, achievable without any contextual understanding. It also predicts its own
+failure mode - change the surface form and the feature vanishes, which is what
+\S\ref{sec:robust} measures.
+
+\subsection{Knowledge distillation (S1)}
+
+S1 is a $6$-layer DistilBERT student trained against E2's soft outputs. With per-label
+temperature-softened teacher and student probabilities $p^{T}_{t,k}=\sigma(z_{t,k}/T)$ and
+$p^{T}_{s,k}=\sigma(z_{s,k}/T)$, the objective mixes a distillation term with the ordinary
+supervised term:
+\begin{equation}
+\mathcal{L}_{\mathrm{KD}}
+= \alpha\,T^{2}\cdot\frac{1}{K}\sum_{k=1}^{K}\mathrm{KL}\bigl(p^{T}_{t,k}\,\Vert\,p^{T}_{s,k}\bigr)
++ (1-\alpha)\,\mathcal{L}_{\mathrm{BCE}},
+\qquad T=2,\ \alpha=0.7 .
+\label{eq:kd}
+\end{equation}
+Here $\mathrm{KL}(\cdot\Vert\cdot)$ is the
+\href{https://en.wikipedia.org/wiki/Kullback-Leibler_divergence}{Kullback-Leibler
+divergence}. Since each of the $K$ heads
+is an independent sigmoid, the term is a per-label binary KL between the two-outcome
+distributions $\{p,1-p\}$, averaged over labels.
+
+The temperature $T$ softens both distributions before comparing them, so the student is
+penalized for disagreeing about near-misses and not only about confident predictions. Because softening by $T$ shrinks the gradients by roughly $1/T^{2}$, the $T^{2}$ factor
+restores them, keeping the two terms comparably weighted as $T$ varies. Soft targets carry
+the teacher's relative confidence between labels, which hard labels discard - the reason
+distillation can transfer more than accuracy alone.
+
+
+\section{Experimental setup}
+\label{sec:setup}
+\subsection{Data and splits}
+
+We use the Jigsaw Toxic Comment Classification Challenge~\cite{jigsaw2018}. Each
+Wikipedia talk-page comment carries six binary labels (\texttt{toxic},
+\texttt{severe\_toxic}, \texttt{obscene}, \texttt{threat}, \texttt{insult},
+\texttt{identity\_hate}); our primary target is binary \texttt{toxic}, with all six
+retained for distillation. \texttt{train.csv} is split $85/15$
+($135{,}635$ training / $23{,}936$ validation) and the labeled rows of \texttt{test.csv} form the test
+set ($63{,}978$).
+
+\subsection{Evaluation process}
+\label{sec:protocol}
+Every model exposes one interface, \texttt{predict\_toxic\_proba}, returning a
+scalar $P(\text{toxic})$ binarised at $0.5$ unless stated otherwise. All headline
+results are scored on a single seeded $800$-comment test subset on CPU, so accuracy
+and latency are measured under identical conditions, and we report parameter count
+and latency (ms/comment) alongside every accuracy figure - a comparison that
+ignores cost is not a fair comparison.
+
+
+\textbf{Metrics.} We report:
+\begin{itemize}
+    \item \textbf{precision} $=\frac{\mathrm{TP}}{\mathrm{TP}{+}\mathrm{FP}}$ and \textbf{recall} $=\frac{\mathrm{TP}}{\mathrm{TP}{+}\mathrm{FN}}$, whose harmonic mean is \textbf{F1} is our primary metric because it punishes sacrificing either side (balancing FP and FN).
+    \item \textbf{PR-AUC}, which suits imbalanced data by focusing on the rare positive class
+    \item \textbf{ROC-AUC} as a threshold-independent measure of ranking quality
+    \item The false-positive rate $FPR=\frac{\mathrm{FP}}{\mathrm{FP}{+}\mathrm{TN}}$, the quantity of interest in the fairness probe
+\end{itemize}
+We deliberately \textbf{do not report} accuracy: at ${\sim}10\%$ positives
+an all-negative classifier scores $90\%$ accuracy and F1 $=0$.
+
+\subsection{Perturbation suite}
+
+We take comments the model already flags as toxic and apply surface noise that a
+human still reads as toxic. A comment evades if its score falls below
+$0.5$ after perturbation. The evasion rate is the fraction of originally-detected
+comments that evade. Higher means more brittle.
+
+Six obfuscations are applied, all preserving human readability: leetspeak
+(\texttt{\$7up1d}), space-out (\texttt{s t u p i d}), punct-noise (\texttt{s.t.u.p.i.d}),
+typos (adjacent-character swaps in $\sim$10\% of words, \texttt{sutpid}), repeated
+characters (\texttt{stuuupiiid}) and upper case (\texttt{STUPID}).
+
+\subsection{Identity fairness probe}
+
+Following Dixon et al.~\cite{dixon2018} we fill neutral template carriers with $21$
+identity terms spanning religion, race, orientation, gender and disability, plus two neutral baselines (\texttt{human}, \texttt{normal}) - $23$ fillers across $16$
+templates in three length tiers ($10$ short, $3$ medium ${\sim}50$ words, $3$ long ${\sim}140$ words), giving $16 \times 23 = 368$ probe sentences. None is toxic by
+construction, so every positive prediction is a false positive. Per-group FPR is compared against $8$ length-matched sentences with no identity term, isolating the
+identity mention from the effect of sentence length.
+
+\subsection{Masking intervention}
+\label{sec:masking}
+
+\textbf{(a) Inference masking:} replace the identity term in each probe sentence with
+\texttt{[MASK]} (encoders) or the empty string (SVM) and re-measure identity FPR - a
+collapse to zero means the model was relying on the token itself.
+\textbf{(b) Training-time masking (E0 only):} retrain the SVM on data with identity
+terms removed and compare identity FPR and \texttt{identity\_hate} recall against the
+unmasked baseline.
+
+% ============================================================================
+\section{Results}
+\label{sec:results}
+
+\subsection{Accuracy versus efficiency}
+
+\begin{figure}[!htb]
+\centering
+\begin{subfigure}[b]{0.46\textwidth}
+\includegraphics[width=\textwidth]{figures/model_comparison_bars_test.png}
+\caption{F1 and PR-AUC with parameter counts.}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.385\textwidth}
+\includegraphics[width=\textwidth]{figures/accuracy_latency_test.png}
+\caption{F1 against inference latency (log scale).}
+\end{subfigure}
+\caption{Accuracy versus cost, shared $n{=}800$ test subset. The SVM sits upper-\emph{left}
+- close to the encoders on F1, three orders of magnitude cheaper.}
+\label{fig:accuracy}
+\end{figure}
 
 \begin{table}[H]
 \centering
-\caption{Text perturbation suite.}
-\label{tab:perturbations}
-\small
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Perturbation} & \textbf{What it does} & \textbf{Example} \\
-\midrule
-Leetspeak & Replace letters with symbols: a$\to$@, e$\to$3, \ldots & \texttt{you are stupid} $\to$ \texttt{y0u @r3 \$7up1d} \\
-Space-out & Insert spaces between characters ($>$3 chars) & \texttt{stupid} $\to$ \texttt{s t u p i d} \\
-Punct-noise & Insert dots between characters ($>$3 chars) & \texttt{stupid} $\to$ \texttt{s.t.u.p.i.d} \\
-Typos & Swap adjacent characters in ${\sim}$10\% of words & \texttt{stupid} $\to$ \texttt{sutpid} \\
-Repeat chars & Stretch vowels (emphatic typing) & \texttt{stupid} $\to$ \texttt{stuuupiiid} \\
-Upper case & Convert entire comment to capitals & \texttt{stupid} $\to$ \texttt{STUPID} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-These perturbations mimic real evasion tactics users employ to dodge automated moderation. Leetspeak and spacing break token-level features; typos test character-level robustness; upper-case tests case normalization.
-
-\subsection{Fairness Probe}\label{sec:fairness}
-
-Following Dixon et al.\ (2018), we construct 210 neutral sentences by filling 10 template carriers (``I am \{g\}.'', ``My friend is \{g\}.'', etc.) with 21 identity terms across 5 categories (religion, race, orientation, gender, disability). By construction none is toxic, so any positive prediction is a false positive. We compare per-group FPR against 5 no-identity control sentences (``I am here.'', ``My friend is nice.'') to verify that the bias is identity-driven, not template-driven.
-
-\subsection{Masking Intervention}
-
-We probe the \emph{mechanism} behind identity-term false positives in two ways:
-
-\textbf{(a) Inference masking.} At test time, replace the identity term in each probe sentence with \texttt{[MASK]} (for the encoder) or the empty string (for the SVM) and re-measure identity FPR. If FPR drops to zero, the model relies on the identity token itself---a lexical shortcut.
-
-\textbf{(b) Training-time masking (SVM only).} Retrain the SVM on data where identity terms are removed from the training text. Compare identity FPR and identity-hate recall against the unmasked baseline. This tests whether naive debiasing helps or harms.
-
-%----------------------------------------------------------------------
-\section{Experiments and Results}
-
-\subsection{Accuracy vs.\ Efficiency}\label{sec:accuracy}
-
-% \begin{figure}[t]\centering
-%   \includegraphics[width=\linewidth]{figures/model_comparison_bars_test.png}
-%   \caption{Model comparison on test set.}
-% \end{figure}
-
-\textbf{Goal.} Establish a baseline comparison of all models on the same binary toxic task, and determine whether a larger model actually earns its cost.
-
-\textbf{Protocol.} Score the val and test splits with each model's \texttt{predict\_toxic\_proba} at threshold~0.5. Measure F1, PR-AUC, ROC-AUC, and inference latency (ms/comment, CPU). Encoder and SVM use test $n{=}500$; decoder $n{=}200$.
-
-\begin{table}[H]
-\centering
-\caption{Accuracy vs.\ efficiency (test set).}
-\label{tab:accuracy}
-\small
-\begin{tabular}{@{}lrcccc@{}}
+\footnotesize
+\setlength{\tabcolsep}{9pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}l r r r r r@{}}
 \toprule
 \textbf{Model} & \textbf{Params} & \textbf{F1} & \textbf{PR-AUC} & \textbf{ROC-AUC} & \textbf{ms/comment} \\
 \midrule
-toxic-bert (BERT)       & 109M & 0.770 & 0.843          & 0.981 & 432   \\
-tfidf-svm (non-neural)  & 50k  & 0.733 & \textbf{0.862} & 0.975 & \textbf{0.70} \\
-distilgpt2-d2 (decoder) & 82M  & 0.206 & 0.102          & 0.45  & 769   \\
-distilgpt2-d1 (decoder) & 82M  & 0.189 & 0.167          & 0.46  & 849   \\
+\texttt{toxic-bert} (E2)           & 109M & \textbf{0.752} & \textbf{0.835} & \textbf{0.979} & 175 \\
+\rowcolor{rowgray}
+\texttt{tfidf-svm} (E0)            & 50k  & 0.703 & 0.784 & 0.958 & \textbf{0.1} \\
+\texttt{bert-base-classifier} (E1) & 109M & 0.675 & 0.791 & 0.961 & 278 \\
+\rowcolor{rowgray}
+\texttt{bert-base-mlm-prompt} (E1-p) & 109M & 0.000$^{*}$ & 0.227 & 0.722 & 283 \\
+\texttt{distilgpt2-d2} (0-shot)    & 82M  & 0.202 & 0.098 & 0.457 & 645 \\
+\rowcolor{rowgray}
+\texttt{distilgpt2-d1} (0-shot)    & 82M  & 0.163 & 0.100 & 0.389 & 649 \\
+\texttt{distilbert-student} (S1)   & 67M  & 0.695 & 0.786 & 0.966 & 263 \\
+\rowcolor{rowgray}
+\texttt{distilgpt2-d1-ft}          & 82M  & 0.546 & 0.732 & \textbf{0.961} & $\dagger$ \\
 \bottomrule
 \end{tabular}
+\caption{Headline results, shared $n{=}800$ test subset, CPU.
+$^{*}$F1 $=0$ at threshold $0.5$ is a calibration artefact, not a discrimination
+failure - see \S\ref{sec:samecheckpoint}. S1 and D1-ft here are our own
+reduced-scale checkpoints (\S\ref{sec:kd}), not the Colab runs of
+Table~\ref{tab:kd}. $\dagger$D1-ft's latency is withheld: its timing window was
+corrupted by a machine suspend, and since it shares an identical architecture
+and scoring path with D1, ${\approx}650$\,ms/comment is the honest expectation.}
+\label{tab:headline}
 \end{table}
 
-\textbf{Interpretation.} The linear model is close to toxic-bert on F1 and \textbf{beats its PR-AUC} at ${\sim}600\times$ lower latency---most of the task is lexical, confirming that raw accuracy alone does not justify a 109M-parameter transformer. The decoder is near chance (ROC-AUC $\approx 0.45$), consistent with H3: a small language model cannot discriminate toxicity without task-specific supervision.
+The linear model comes close to \texttt{toxic-bert} without matching it: the encoder
+holds a consistent edge on every metric. The task is therefore substantially lexical
+yet not purely so - $50$k TF-IDF features buy ${\sim}93\%$ of the encoder's F1 at
+${\sim}1750\times$ lower latency, a bounded rather than transformative return on
+$109$M parameters. Both zero-shot decoders rank at or below chance (ROC-AUC
+$0.39$-$0.46$), consistent with H3; E1-p looks equally weak by F1 but ranks far
+better, for reasons \S\ref{sec:samecheckpoint} unpacks.
 
-\subsection{Fairness: Per-Identity FPR}\label{sec:fairness-results}
+\subsection{Fairness: per-identity false-positive rate}
 
-% \begin{figure}[t]\centering
-%   \includegraphics[width=\linewidth]{figures/fairness_fpr_heatmap.png}
-%   \caption{Per-identity FPR heatmap.}
-% \end{figure}
-
-\textbf{Goal.} Test H1 (specialized encoder trades fairness for accuracy) by measuring how often each model wrongly flags neutral identity-mention sentences.
-
-\textbf{Protocol.} Score the 210-sentence identity probe (\S\ref{sec:fairness}) plus 5 no-identity controls with each model at threshold~0.5. Report overall mean FPR across 21 groups and control FPR.
+\begin{figure}[!htb]
+\centering
+\begin{subfigure}[t]{0.335\textwidth}
+\vspace{0pt}\centering
+\includegraphics[width=\textwidth]{figures/fairness_fpr_heatmap.png}
+\caption{Per-identity FPR, $368$-sentence neutral probe.}
+\label{fig:fairness}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.60\textwidth}
+\vspace{0pt}\centering
+\includegraphics[width=\textwidth]{figures/robustness_evasion_heatmap.png}
+\caption{Evasion rate per perturbation (higher $=$ more brittle).}
+\label{fig:robust}
+\end{subfigure}
+\caption{The two diagnostic probes. Left: every cell is a false positive by
+construction, so any colour is unwanted. Right: measured on genuinely toxic
+test comments.}
+\label{fig:probes}
+\end{figure}
 
 \begin{table}[H]
 \centering
-\caption{Identity FPR on neutral probe sentences.}
+\footnotesize
+\setlength{\tabcolsep}{11pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}l r r@{}}
+\toprule
+\textbf{Model} & \textbf{Identity FPR} & \textbf{Control FPR} \\
+\midrule
+\texttt{tfidf-svm} (E0)              & \textbf{0.049} & 0.000 \\
+\rowcolor{rowgray}
+\texttt{toxic-bert} (E2)             & 0.087 & 0.000 \\
+\texttt{bert-base-classifier} (E1)   & 0.103 & 0.000 \\
+\rowcolor{rowgray}
+\texttt{bert-base-mlm-prompt} (E1-p) & 0.000$^{*}$ & 0.000 \\
+\texttt{distilgpt2-d1}               & 0.899 & 1.000 \\
+\rowcolor{rowgray}
+\texttt{distilgpt2-d2}               & 1.000 & 1.000 \\
+\texttt{distilbert-student} (S1)     & \textbf{0.008} & 0.000 \\
+\rowcolor{rowgray}
+\texttt{distilgpt2-d1-ft}            & 0.326 & 0.000 \\
+\bottomrule
+\end{tabular}
+\caption{Identity FPR versus length-matched control FPR.
+$^{*}$Not genuine fairness - E1-p almost never crosses the threshold at all.
+S1 posts the lowest identity FPR of any model that genuinely discriminates
+(0.008; only \texttt{gay} 0.125 and \texttt{lesbian} 0.063 fire at all), and
+fine-tuning drags the decoder's control FPR from 1.000 to 0.000.}
 \label{tab:fairness}
-\small
-\begin{tabular}{@{}lcc@{}}
-\toprule
-\textbf{Model} & \textbf{Overall identity FPR} & \textbf{Control FPR} \\
-\midrule
-tfidf-svm        & 0.090 & 0.000 \\
-toxic-bert       & 0.152 & 0.000 \\
-distilgpt2-d1-ft & 0.505 & 0.000 \\
-distilgpt2-d1    & 0.867 & \textbf{1.000} \\
-\bottomrule
-\end{tabular}
 \end{table}
 
-\textbf{Interpretation.} Control FPR is~0 for all trained classifiers, meaning false positives are \emph{specifically} identity-driven (``I am gay'', ``I am Muslim'' are flagged despite being non-toxic). The specialized encoder is \textbf{less fair} than the linear baseline (H1 supported). Zero-shot decoder flags essentially everything (control FPR~1.0); the D1 fine-tune removes that degeneracy (control~0) but still over-flags identity mentions (${\sim}$50\% FPR).
+Control FPR is exactly zero for every classifier while identity FPR is not, which
+localises the false positives precisely: they are identity-driven, not length- or
+template-driven. Sentences such as \emph{``I am gay''} are flagged despite carrying
+no hostile content. The specialised encoder is less fair than the linear baseline,
+supporting H1 - but our generic E1 is less fair still ($0.103$, the worst
+non-degenerate model) on the identical architecture with \emph{less} specialisation,
+so specialisation alone does not explain the ordering (\S\ref{sec:samecheckpoint}).
+Both zero-shot decoders flag essentially everything and are degenerate.
 
-\subsection{Robustness to Obfuscation}
+\subsection{Robustness to obfuscation}
+\label{sec:robust}
 
-% \begin{figure}[t]\centering
-%   \includegraphics[width=\linewidth]{figures/robustness_evasion_heatmap.png}
-%   \caption{Evasion rates by perturbation type.}
-% \end{figure}
 
-\textbf{Goal.} Determine which architecture is most resilient to the surface-level evasion tactics described in \S2.4.
-
-\textbf{Protocol.} Take the subset of test comments that each model correctly flags as toxic (score $\ge 0.5$). Apply each perturbation and re-score. Report evasion rate.
+We measure robustness in \textbf{both directions}: perturbing genuinely toxic
+comments to see what slips through (\emph{evasion}), and perturbing genuinely
+neutral comments to see what gets wrongly flagged (\emph{false-positive
+induction}). Reporting only the first, as is common, gives a misleading picture -
+as \S\ref{sec:direction} shows.
 
 \begin{table}[H]
 \centering
-\caption{Evasion rates (higher = more brittle).}
-\label{tab:robustness}
-\small
-\begin{tabular}{@{}lcccc@{}}
+\footnotesize
+\setlength{\tabcolsep}{7pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}l r r r r r r@{}}
 \toprule
-\textbf{Model} & \textbf{Baseline det.} & \textbf{Leetspeak} & \textbf{Space-out} & \textbf{Punct-noise} \\
+\textbf{Model} & \textbf{$n$} & \textbf{Baseline det.} & \textbf{leetspeak} & \textbf{space-out} & \textbf{punct-noise} & \textbf{typos} \
 \midrule
-toxic-bert    & 0.92 & \textbf{0.28} & 0.03     & 0.15    \\
-tfidf-svm     & 0.71 & 0.74          & 0.75     & 0.75    \\
-distilgpt2-d1 & 0.58 & 0.10*         & 0.17*    & 0.17*   \\
+\texttt{toxic-bert} (E2)          & 100 & 0.930 & \textbf{0.280} & \textbf{0.054} & \textbf{0.150} & \textbf{0.140} \
+\rowcolor{rowgray}
+\texttt{bert-base-classifier} (E1)& 100 & 0.890 & 0.719 & 0.191 & 0.225 & 0.169 \
+\texttt{tfidf-svm} (E0)           & 100 & 0.760 & 0.711 & 0.750 & 0.750 & 0.210 \
+\rowcolor{rowgray}
+\texttt{distilbert-student} (S1)  & 100 & 0.820 & 0.634 & 0.232 & 0.524 & 0.207 \
+\texttt{distilgpt2-d1-ft}         & 25  & 1.000 & 0.680 & 0.160 & 0.840 & 0.040 \
+\rowcolor{rowgray}
+\texttt{distilgpt2-d1} (0-shot)   & 100 & 0.580 & 0.103 & 0.172 & 0.172 & 0.086 \
 \bottomrule
 \end{tabular}
+\caption{Evasion rate per perturbation (higher $=$ more brittle), on comments
+each model already detects. D1-ft is measured at $n{=}25$ rather than $100$ - the
+decoder's cost per pass rises sharply once perturbation inflates the token count -
+so its row is indicative rather than tightly estimated. Zero-shot D1's low
+evasion is an artefact of its low baseline detection ($0.580$): a model that
+barely detects toxicity has little left to evade. E1-p is omitted: it detects
+nothing at threshold $0.5$, so evasion is undefined.}
+\label{tab:evasion}
 \end{table}
 
-\textbf{Interpretation.} The encoder is far the most robust---its WordPiece tokenizer and contextual embeddings survive most surface noise. The SVM is trivially evaded because its TF-IDF features \emph{are} the surface tokens that perturbations destroy. The decoder's low evasion rate is misleading: its baseline detection is only~0.58 (near-random), so there is little left to evade. No model is fooled by upper-casing alone.
+\texttt{toxic-bert} is by far the hardest to evade (leetspeak $0.280$, space-out
+$0.054$, punct-noise $0.150$). The SVM is trivially defeated by every
+character-level perturbation ($\approx 0.75$), exactly as its feature space
+predicts: change the surface token and the feature disappears. The informative
+result is E1 - identical architecture, parameter count and pretraining to
+\texttt{toxic-bert}, yet nearly as brittle as the bag of words ($0.719$ vs.\
+$0.711$ leetspeak evasion). Sub-word tokenisation alone therefore does not confer
+robustness; \texttt{toxic-bert}'s advantage tracks its specific large-scale
+in-domain fine-tune, not the fact that it is a BERT.
 
-\subsection{Masking Intervention}
+\textbf{Distillation transferred fairness but not robustness.} S1 is the sharpest
+new result here. It reproduces its teacher's \emph{clean-text} behaviour well
+(\S\ref{sec:kd}) and improves on its fairness by an order of magnitude, yet it is
+more than twice as easy to evade: leetspeak $0.280 \to 0.634$, punct-noise
+$0.150 \to 0.524$, with baseline detection falling $0.930 \to 0.820$. On evasion
+it sits beside the bag-of-words model rather than beside its own teacher. The
+plausible mechanism is in Eq.~\eqref{eq:kd} itself: the KD loss matches teacher
+logits on \emph{unperturbed} training comments, so the student inherits the
+teacher's decision boundary on clean text without inheriting whatever makes that
+boundary hard to move. It learns what the teacher concludes, not why. We cannot
+fully separate this from under-training, since our student is the early-stopped
+checkpoint of \S\ref{sec:kd}; that separation needs the full-scale run.
 
-% \begin{figure}[t]\centering
-%   \includegraphics[width=0.48\linewidth]{figures/masking_inference_ablation.png}\hfill
-%   \includegraphics[width=0.48\linewidth]{figures/masking_svm_tradeoff.png}
-%   \caption{Left: inference masking ablation. Right: SVM masking trade-off.}
-% \end{figure}
+\subsection{Robustness is direction-dependent}
+\label{sec:direction}
 
-\textbf{Goal.} Identify the \emph{mechanism} behind identity-term false positives (\S\ref{sec:fairness-results}): is the model relying on the identity token itself, or on surrounding context?
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.68\textwidth]{figures/robustness_fp_induction_heatmap.png}
+\caption{False-positive induction: the fraction of correctly-classified
+\emph{neutral} comments that flip to ``toxic'' under each perturbation. Compare
+with Fig.~\ref{fig:robust}, the evasion view of the same suite.}
+\label{fig:fpinduction}
+\end{figure}
 
-\textbf{Protocol.} (a)~\emph{Inference masking}: replace the identity term in each probe sentence with \texttt{[MASK]} (encoder) or empty string (SVM) and re-measure FPR. (b)~\emph{Training-time masking (SVM only)}: retrain on data with identity terms removed and compare identity FPR and identity-hate recall.
+Reading Table~\ref{tab:evasion} alone, \texttt{toxic-bert} looks simply robust.
+The second direction contradicts that. Applying the \emph{same} perturbations to
+neutral comments flips them to ``toxic'' at a rate of $0.910$ (space-out),
+$0.809$ (repeated characters) and $0.652$ (punct-noise), against an unperturbed
+false-positive rate of only $0.110$. The model that is hardest to trick into
+missing real toxicity is simultaneously among the easiest to trick into
+manufacturing it.
 
-\textbf{Results.} Inference masking drops identity FPR from \textbf{0.152 to 0.000} (toxic-bert) and from \textbf{0.090 to 0.000} (SVM). Both architectures---a deep transformer and a bag-of-words---rely on the \textbf{identity token itself}: a lexical shortcut. Training-time masking of the SVM does \emph{not} reduce FPR ($0.090 \to 0.10$) but costs identity-hate recall ($0.78 \to 0.68$).
+The SVM shows the mirror image: near-total collapse under evasion, but almost
+complete indifference in this direction ($0.021$ for space-out and punct-noise).
+It is a \emph{weak but stable} model - never very sensitive to anything unusual,
+which hurts it in one direction and helps it in the other. S1 again follows its
+teacher here rather than the SVM ($0.707$ space-out, $0.793$ repeated
+characters), so the FP-induction weakness \emph{did} survive distillation even
+though evasion robustness did not.
 
-\textbf{Interpretation.} The bias is a single-token shortcut learned from the training data, not an architectural artifact. Naive token removal during training is an insufficient and harmful ``fix''---it sacrifices real identity-hate detection for negligible fairness improvement.
+The practical consequence is that ``robust'' is not a single property, and a
+deployment that reports only evasion resistance is reporting the half of the
+picture that flatters it. For an auto-moderator, the FP-induction direction is
+arguably the more damaging failure: perturbed neutral text is exactly what
+ordinary users produce - emphatic capitalisation, elongated words, stray
+punctuation.
 
-\subsection{Encoder vs.\ Decoder Agreement}
+\subsection{Masking: one bias, two mechanisms}
+\label{sec:maskingresults}
 
-% \begin{figure}[t]\centering
-%   \includegraphics[width=0.48\linewidth]{figures/enc_dec_agreement.png}\hfill
-%   \includegraphics[width=0.48\linewidth]{figures/enc_dec_gold_agreement.png}
-%   \caption{Left: encoder--decoder agreement. Right: each vs.\ gold.}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{figures/masking_inference_ablation.png}
+\caption{Inference-time masking, per model.}
+\label{fig:maskablation}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{figures/masking_svm_tradeoff.png}
+\caption{Training-time masking: the SVM trade-off.}
+\label{fig:masktradeoff}
+\end{subfigure}
+\caption{The masking intervention. Left: replacing the identity term with
+\texttt{[MASK]} at inference. Right: retraining the SVM with identity terms
+stripped from the training text.}
+\label{fig:masking}
+\end{figure}
 
-\textbf{Goal.} Measure how much the encoder and decoder agree, and whether disagreements reflect complementary signals or decoder degeneracy.
+A deep transformer and a bag-of-words model behave identically here: masking the
+identity token collapses both false-positive rates to zero ($0.087\to0$ for E2,
+$0.049\to0$ for E0). Finding that clean
+lexical shortcut inside \texttt{toxic-bert} is the more interesting half - $109$M
+parameters of contextual encoding still route the decision through a single token.
+The distilled student follows the same mechanism as its teacher rather than its
+own architecture-mate: masking takes it $0.008 \to 0.000$, so the residual bias it
+does carry is the same single-token shortcut, merely an order of magnitude
+fainter. E1 is the one that breaks the pattern: masking \emph{increases} its
+identity FPR ($0.103 \to 0.188$), so ``mask the identity term and the bias goes
+away'' is not universal. The likely mechanism is distribution shift - a literal \texttt{[MASK]}
+is essentially absent from E1's fine-tuning data, and the out-of-distribution input
+pushes this weakly-trained head toward the positive class rather than neutrality.
 
-\textbf{Protocol.} Score 200 test comments with toxic-bert (6-label sigmoid) and DistilGPT-2 D1 (per-label yes/no prompt). For each label binarize at~0.5 and compute agreement rate, plus each model's agreement with gold.
+Training-time masking of the SVM is worse than useless: identity FPR does not fall
+($0.049 \to 0.063$) while \texttt{identity\_hate} recall drops sharply
+($0.781 \to 0.676$) at roughly unchanged general toxicity recall ($0.659 \to 0.645$).
+Deleting the identity vocabulary removes the model's ability to recognise attacks on
+those identities without removing its tendency to over-flag them - which is why the
+mitigation would have to act on the objective rather than on the vocabulary.
 
-\textbf{Results.} Overall encoder--decoder agreement is only \textbf{0.185}. Against gold on \texttt{toxic}, the encoder scores \textbf{0.925} but the decoder only \textbf{0.230}. Of 200 comments, the two disagree on \texttt{toxic} \textbf{153}~times---overwhelmingly decoder false positives on benign text:
+\subsection{Same checkpoint, two methods}
+\label{sec:samecheckpoint}
+
+E1 and E1-p hold architecture \emph{and} pretrained weights fixed and vary only
+the method. On the same $n{=}800$ subset the trained head dominates on every
+metric: F1 $0.675$ vs.\ $0.000$, PR-AUC $0.791$ vs.\ $0.227$, ROC-AUC $0.961$ vs.\
+$0.722$. This is the cleanest confirmation of H3 in the project.
+
+The $F1=0$ deserves care: it is a calibration artefact, not an absence of signal.
+E1-p's scores almost never cross $0.5$, yet its ROC-AUC of $0.722$ sits far above the
+zero-shot decoders' ${\approx}0.4$ - it \emph{ranks} meaningfully and is merely
+mis-thresholded. Two conclusions follow: naive thresholding can hide real
+discriminative ability entirely, and BERT's bidirectional masked-LM objective gives a
+much stronger zero-shot signal than GPT-2's causal one.
+
+The two methods agree on $82.8\%$ of comments. Accuracy against gold looks
+deceptively close ($0.908$ vs.\ $0.885$), but E1-p's is mostly the ${\sim}88$-$90\%$
+non-toxic base rate; of the $138$ disagreements, E1 consistently catches real
+toxicity E1-p misses.
+
+Finally, this pair sharpens H1: generic E1 (identity FPR $0.103$) is \emph{less} fair
+than specialised \texttt{toxic-bert} ($0.087$) with architecture family held fixed, so
+the naive reading ``specialisation costs fairness'' does not survive. What
+distinguishes \texttt{toxic-bert} is the scale and quality of its supervised stage,
+and that same stage appears to drive both its fairness and its robustness advantage.
+
+\subsection{Distillation and decoder fine-tuning}
+\label{sec:kd}
 
 \begin{table}[H]
 \centering
-\caption{Disagreement examples (test $n{=}200$).}
-\label{tab:agreement}
-\small
-\begin{tabular}{@{}p{7.5cm}ccc@{}}
+\footnotesize
+\setlength{\tabcolsep}{9pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}l r r r r@{}}
 \toprule
-\textbf{Comment (truncated)} & \textbf{Gold} & \textbf{Encoder} & \textbf{Decoder} \\
+\textbf{Model} & \textbf{Params} & \textbf{F1 (toxic)} & \textbf{Identity FPR} & \textbf{ms/comment} \\
 \midrule
-``:Replied here:'' & 0 & 0 & 1 \\
-``US New Citizenship Test. In October of 2008\ldots'' & 0 & 0 & 1 \\
-``This is your last warning. You will be blocked\ldots'' & 0 & 0 & 1 \\
+\texttt{toxic-bert} (teacher)      & 109M & 0.770 & 0.152 & 274 \\
+\rowcolor{rowgray}
+\texttt{distilbert-student} (S1)   & 67M  & 0.772 & \textbf{0.062} & \textbf{159} \\
+\midrule
+\texttt{distilgpt2-d1} (zero-shot) & 82M  & 0.189 & 0.867 & - \\
+\rowcolor{rowgray}
+\texttt{distilgpt2-d1-ft}          & 82M  & 0.590 & 0.505 & - \\
 \bottomrule
 \end{tabular}
+\caption{Distillation ($n{=}500$) and decoder fine-tuning ($n{=}200$), run on
+separate GPU passes. Sample sizes differ from Table~\ref{tab:headline}, which is
+why \texttt{toxic-bert} and \texttt{distilgpt2-d1} appear here with slightly
+different values; re-scoring both rows on the shared $n{=}800$ subset is pending.
+D1-ft ROC-AUC is $0.965$, up from $0.46$ zero-shot.}
+\label{tab:kd}
 \end{table}
 
-\textbf{Interpretation.} Cross-architecture agreement is a poor proxy for correctness here. The disagreement stems from decoder degeneracy (labeling nearly everything toxic), not complementary insights. The encoder is right nearly every time.
+The student matches its teacher's toxic F1 ($0.772$ vs.\ $0.770$) at ${\sim}1.7\times$
+lower latency \emph{and} substantially lower identity FPR ($0.062$ vs.\ $0.152$):
+compression reduced bias rather than amplifying it, partially rejecting H2. The
+plausible mechanism is Eq.~\eqref{eq:kd} itself - temperature smoothing transfers
+the teacher's uncertainty on identity-adjacent examples, regularising against
+over-confident positives exactly where the teacher's confidence is least justified.
+Fine-tuning the decoder recovers usable discrimination with no architectural change
+(F1 $0.19 \to 0.59$, ROC-AUC $0.46 \to 0.97$), so zero-shot failure at this scale
+reflects missing supervision rather than an architectural ceiling - though D1-ft's
+identity FPR ($0.505$) remains far worse than either encoder's.
 
-\subsection{Distillation (Soft KD, 6 Labels)}
-
-\textbf{Goal.} Test H2 (compression amplifies bias) by distilling toxic-bert into a smaller student and comparing accuracy and fairness.
-
-\textbf{Protocol.} Train a 6-label DistilBERT student from frozen toxic-bert using soft KD ($T{=}2$, $\alpha{=}0.7$) + hard BCE. 20k train / 2k val, 4 epochs, best checkpoint by val macro-F1. Evaluate with the same binary harness and fairness probe.
+\textbf{Reproduced locally, early-stopped for compute.} Both trainings above were
+also re-run from scratch on our own hardware so that S1 and D1-ft could be scored on
+the \emph{shared} $n{=}800$ subset alongside every other model
+(Tables~\ref{tab:headline}, \ref{tab:fairness}). Both runs were deliberately
+early-stopped: the machine has no usable GPU (\S\ref{sec:protocol}), and our
+distillation run of $4{,}000$ rows $\times$ 2 epochs took $2$\,h\,$31$\,m of CPU
+wall-clock, so reproducing the $20{,}000$-row $\times$ 4-epoch configuration above -
+ten times the work - would have required roughly \textbf{25 hours} of uninterrupted
+compute for a single checkpoint. We stopped early and report what that buys:
 
 \begin{table}[H]
 \centering
-\caption{Distillation: teacher vs.\ student.}
-\label{tab:distill}
-\small
-\begin{tabular}{@{}lrcccl@{}}
+\footnotesize
+\setlength{\tabcolsep}{9pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}l r r r r@{}}
 \toprule
-\textbf{Model} & \textbf{Params} & \textbf{Test F1} & \textbf{Identity FPR} & \textbf{ms/comment} & \textbf{Notes} \\
+\textbf{Checkpoint} & \textbf{Train scale} & \textbf{F1 (toxic)} & \textbf{ROC-AUC} & \textbf{Identity FPR} \
 \midrule
-toxic-bert (teacher)  & 109M & 0.770          & 0.152          & 274          & $n{=}500$ \\
-distilbert-student    & 67M  & \textbf{0.772} & \textbf{0.062} & \textbf{159} & soft KD, 6-label \\
+\texttt{toxic-bert} (teacher, E2)   & Unitary, full Jigsaw   & \textbf{0.752} & 0.979 & 0.087 \
+\rowcolor{rowgray}
+S1, Colab (Table~\ref{tab:kd})      & 20k $\times$ 4 ep.     & 0.772$^{a}$ & -- & 0.062$^{a}$ \
+S1, ours (early-stopped)            & 4k $\times$ 2 ep.      & 0.695 & 0.966 & \textbf{0.008} \
+\rowcolor{rowgray}
+D1-ft, ours (early-stopped)         & 800 $\times$ 2 ep.     & 0.546 & 0.961 & 0.326 \
 \bottomrule
 \end{tabular}
+\caption{Our early-stopped reproductions against the full-scale runs.
+$^{a}$measured under the separate $n{=}500$ protocol of Table~\ref{tab:kd}, so not
+directly comparable to the $n{=}800$ column.}
+\label{tab:earlystop}
 \end{table}
 
-\textbf{Interpretation (vs H2).} The student \textbf{matches} the teacher's toxic F1 (0.772 vs.\ 0.770) at ${\sim}1.7\times$ lower latency and \textbf{lower} overall identity FPR (0.062 vs.\ 0.152). Compression did \textbf{not} amplify identity bias---it reduced it. The likely mechanism: soft KD with temperature smoothing regularizes the student's confidence on identity-adjacent examples. Worst-group FPR remains concentrated (e.g.\ \texttt{gay}), suggesting the bias is not fully eliminated.
+The honest reading is that 	extbf{the accuracy gap is real and attributable to the
+truncated budget}: our student reaches F1 $0.695$ against the teacher's $0.752$, and
+does not reproduce the full-scale student's claim of matching it. What survives the
+budget cut - and is arguably the more interesting half - is the \emph{fairness} result. Our
+student's identity FPR is $0.008$, an order of magnitude below its own teacher
+($0.087$) and the lowest of any model here that actually discriminates; only
+\texttt{gay} ($0.125$) and \texttt{lesbian} ($0.063$) register at all. Compression did
+not amplify bias even at one-tenth of the intended training budget, which makes H2's
+rejection harder to attribute to a lucky hyper-parameter draw. Likewise D1-ft, trained
+on just $800$ rows, still lifts ROC-AUC from $0.389$ to $0.961$ and pulls its control
+FPR from $1.000$ to $0.000$: the supervision argument does not need a large budget to
+hold.
 
-\subsection{Decoder Fine-Tune (D1 Yes/No, Binary Toxic)}
+% ============================================================================
+\section{Discussion and limitations}
 
-\textbf{Goal.} Determine whether the zero-shot decoder's failure (\S\ref{sec:accuracy}) is inherent to the architecture or simply a consequence of missing task supervision.
+\textbf{Is the comparison fair?} A fine-tuned encoder against a zero-shot decoder is an
+obvious objection, but E0 and S1 are trained on the same data, D1-ft gives the decoder
+the same kind of supervision and still trails both encoders and the SVM, and
+\texttt{toxic-bert} was trained with more data and tuning than we could apply - so the
+comparison is biased \emph{toward} the encoder and our conclusions survive that bias.
 
-\textbf{Protocol.} Fine-tune DistilGPT-2 with causal LM loss \textbf{only on} the answer tokens (\texttt{yes}/\texttt{no}) after the same D1 prompt. 20k stratified train / 2k val, 4 epochs; best val answer accuracy \textbf{0.942}. Evaluate with the identical \texttt{score\_yes\_no} logprob path.
+\textbf{Limitations.} Headline numbers use an $800$-comment subset rather than the
+full $63{,}978$-row test set, chosen so every model - including the
+$650$\,ms/comment decoders - could be scored under identical CPU conditions;
+confidence intervals at this $n$ are non-trivial and we do not report them.
+Two further caveats follow from the same compute constraint. First, S1 and D1-ft
+are \emph{early-stopped} checkpoints (\S\ref{sec:kd}): matching the intended
+$20$k-row schedule would have cost ${\approx}25$ hours of CPU per checkpoint, so
+their accuracy numbers are a floor, not the method's ceiling - and the striking
+S1 robustness result in \S\ref{sec:robust} cannot be cleanly separated from
+under-training without that run. Second, the perturbation suite is measured at
+$n{=}100$ for every model except D1-ft, which is at $n{=}25$; that row indicates
+a direction rather than a precise rate.
+Table~\ref{tab:kd} comes from separate GPU passes at $n{=}500$ and $n{=}200$, not yet
+re-scored on the shared subset. The fairness probe is synthetic: it measures
+over-flagging of neutral identity mentions, one facet of fairness and no substitute
+for per-group evaluation on real annotated text. All evaluation is in-domain Wikipedia talk-page text. Our proposal also listed
+\texttt{GroNLP/hateBERT}~\cite{caselli2021} - \texttt{bert-base} given continued
+masked-LM pretraining on abusive-language text - which would have separated
+\texttt{toxic-bert}'s advantage into domain exposure versus fine-tuning scale; it was not
+run within the project timeframe, so conclusion 2 attributes that advantage to the
+supervised stage without ruling out the pretraining domain.
 
-\begin{table}[H]
-\centering
-\caption{Decoder zero-shot vs.\ fine-tuned.}
-\label{tab:decoder-ft}
-\small
-\begin{tabular}{@{}lcccl@{}}
-\toprule
-\textbf{Model} & \textbf{F1} & \textbf{ROC-AUC} & \textbf{Identity FPR} & \textbf{Notes} \\
-\midrule
-distilgpt2-d1 (zero-shot)  & 0.189          & 0.46           & 0.867 & degenerate \\
-distilgpt2-d1-ft (fine-tuned) & \textbf{0.590} & \textbf{0.965} & 0.505 & usable ranking \\
-\bottomrule
-\end{tabular}
-\end{table}
+% ============================================================================
+\section{Conclusions}
+\label{sec:conclusions}
 
-\textbf{Interpretation.} Light task-specific adaptation recovers strong discrimination (ROC-AUC $0.46 \to 0.97$; F1 $0.19 \to 0.59$) without changing architecture. This confirms that zero-shot failure reflects \emph{lack of supervision}, not architectural incapability. Identity FPR improves vs.\ zero-shot ($0.87 \to 0.51$; control FPR $1.0 \to 0.0$) but remains substantially worse than toxic-bert (0.15) and the SVM (0.09).
+\begin{enumerate}
+\item \textbf{Toxicity detection is substantially lexical, but not purely so.} A
+$50$k-feature linear model reaches ${\sim}93\%$ of a $109$M encoder's F1 at
+${\sim}1750\times$ lower latency; scale buys a bounded, not transformative, gain.
 
-\subsection{On the Fairness of the Comparison}
+\item \textbf{The encoder's real value is robustness, and it is earned rather than
+architectural.} Our generic \texttt{bert-base-classifier} - identical architecture
+and parameter count to \texttt{toxic-bert} - is nearly as brittle to leetspeak as
+the linear SVM, and is also \emph{less} fair than the specialised model with
+architecture held fixed. Both advantages point at \texttt{toxic-bert}'s training
+scale rather than at specialisation or capacity per se.
 
-A natural objection: is it fair to compare a \textbf{fine-tuned} encoder against a \textbf{zero-shot} decoder? Strictly speaking, the zero-shot decoder result (\S\ref{sec:accuracy}) measures \emph{deployment mode}, not architecture. We address this in several ways:
+\item \textbf{A discriminative head beats prompting, most cleanly on a single
+checkpoint.} E1 dominates E1-p on every metric using identical pretrained weights,
+yet BERT's zero-shot prompt still ranks far better than GPT-2's - architecture and
+method contribute independently.
 
-\begin{enumerate}[nosep]
-  \item \textbf{The SVM is trained on the same data}---it is a genuinely fair baseline and nearly matches toxic-bert, showing that architecture alone does not explain the encoder's F1.
-  \item \textbf{The D1 fine-tune (\S3.7)} gives the decoder the same type of supervision. Even with 20k examples, the fine-tuned decoder (F1~0.59) still trails the encoder (F1~0.77) and the SVM (F1~0.73)---a real gap that persists under controlled conditions.
-  \item \textbf{The distillation student} is trained on the same data via KD and matches the teacher---a fair within-family comparison.
-  \item \textbf{toxic-bert itself is favorable:} it was trained by Unitary on Jigsaw data, potentially with more data and tuning than we provide our own models. If anything, the comparison is biased \emph{toward} the encoder.
+\item \textbf{Identity bias is data-driven but not uniform in mechanism.} Masking
+the identity token erases it for \texttt{toxic-bert} and the SVM - a clean lexical
+shortcut - but \emph{increases} it for our generic classifier, so a mitigation
+validated on one model cannot be assumed to transfer to another.
+
+\item \textbf{Compression preserved fairness but cost robustness.} The soft-KD
+student is the fairest model we measured - identity FPR $0.008$, an order of
+magnitude below its own teacher's $0.087$ - which rejects H2 on the axis H2 was
+about, and does so even from an early-stopped checkpoint trained on a tenth of
+the intended data. But the same student is more than twice as easy to evade as
+its teacher (leetspeak $0.280 \to 0.634$), landing beside the bag-of-words
+baseline. Distillation transferred the teacher's clean-text decision boundary and
+its fairness, not its resistance to obfuscation: the KD loss only ever sees
+unperturbed comments. Compression is not free, but the price is paid somewhere
+other than where H2 predicted.
+
+\item \textbf{``Robust'' is not one property, and reporting one direction
+flatters the model.} \texttt{toxic-bert} is the hardest model to evade and
+simultaneously among the easiest to trick into false alarms: the same
+perturbations that fail to hide real toxicity flip neutral comments to ``toxic''
+$65$-$91\%$ of the time, against an $11\%$ baseline. The SVM shows the exact
+mirror image. Any single robustness number hides this.
+
+
 \end{enumerate}
 
-We therefore frame the zero-shot decoder result as \emph{``what happens when you deploy an off-the-shelf LM without task adaptation''}---a practically important scenario---while the D1-ft result answers the architectural question more directly.
 
-%----------------------------------------------------------------------
-\section{Conclusions and Future Work}
+% ============================================================================
+\vspace{-0.6em}
+\begin{thebibliography}{9}
+\scriptsize
+\setlength{\itemsep}{0pt}
+\setlength{\parskip}{0pt}
+\bibitem{jigsaw2018} Jigsaw / Conversation AI. \emph{Toxic Comment Classification Challenge.} Kaggle, 2018.
+\bibitem{dixon2018} L. Dixon et al. \emph{Measuring and Mitigating Unintended Bias in Text Classification.} AIES, 2018.
+\bibitem{detoxify} L. Hanu, Unitary. \emph{Detoxify (unitary/toxic-bert).} GitHub, 2020.
+\bibitem{devlin2019} J. Devlin, M.-W. Chang, K. Lee, K. Toutanova. \emph{BERT: Pre-training of Deep Bidirectional Transformers.} NAACL, 2019.
+\bibitem{sanh2019} V. Sanh, L. Debut, J. Chaumond, T. Wolf. \emph{DistilBERT: smaller, faster, cheaper and lighter.} NeurIPS EMC$^2$ Workshop, 2019.
+\bibitem{hinton2015} G. Hinton, O. Vinyals, J. Dean. \emph{Distilling the Knowledge in a Neural Network.} arXiv:1503.02531, 2015.
+\bibitem{radford2019} A. Radford et al. \emph{Language Models are Unsupervised Multitask Learners.} OpenAI, 2019.
+\bibitem{caselli2021} T. Caselli et al. \emph{HateBERT: Retraining BERT for Abusive Language Detection.} WOAH, 2021.
+\end{thebibliography}
 
-\begin{enumerate}[nosep]
-  \item \textbf{Toxicity detection is mostly lexical}---a 50k-feature linear model rivals a 109M encoder; ``bigger'' is not the story.
-  \item \textbf{The encoder's real value is robustness to obfuscation}, not raw accuracy.
-  \item \textbf{Zero-shot decoder prompting fails at DistilGPT-2 scale}---near chance and often degenerate; a \textbf{D1 fine-tune} (\S3.7) recovers usable discrimination (test F1~0.59, ROC-AUC~0.97) without changing architecture, though identity FPR stays high~(0.51).
-  \item \textbf{Identity bias is data-driven, not architectural}---it appears even in the linear model, and masking the identity token erases it, revealing a lexical shortcut. Fixing it via naive training-masking trades recall for little gain.
-  \item \textbf{Distillation (soft KD):} the DistilBERT student matches toxic-bert toxic F1 (0.772 vs.\ 0.770) at lower latency and \textbf{lower} identity FPR (0.062 vs.\ 0.152) on our probe---compression need not amplify bias (\textbf{H2} partially rejected).
-\end{enumerate}
+\section*{Ethics Statement}
+\addcontentsline{toc}{section}{Ethics Statement}
 
-\textbf{Future work.} Soft-F1 regularization during distillation to directly optimize the evaluation metric; calibration analysis (ECE, reliability diagrams); larger evaluation samples for tighter confidence intervals; hateBERT cross-domain probe; neural masked fine-tune of DistilBERT as a debiasing intervention.
+\textbf{1. Introduction.}
+Student names: Omer Ramon, Tom Jacob. Project title: \textbf{Words That Harm}. The
+project compares non-neural, encoder-based and decoder-based classifiers on the same
+toxic-comment task and audits each for identity bias, robustness to obfuscation, and the mechanism behind its errors. Its aim is not to build a moderation system, but to compare and characterize how such systems fail and to quantify what a benchmark score holds.
 
-%----------------------------------------------------------------------
-\section{References}
+\textbf{2. LLM-generated responses.} \emph{The following answers to 2a-2c were
+generated by Claude (Anthropic).}
 
-\begin{enumerate}[nosep,label={[\arabic*]}]
-  \item Jigsaw/Conversation AI. Toxic Comment Classification Challenge. Kaggle, 2018.
-  \item Dixon, Li, Sorensen, Thain, Vasserman. Measuring and Mitigating Unintended Bias in Text Classification. AIES 2018.
-  \item Hanu, Unitary. Detoxify / \texttt{unitary/toxic-bert}, 2020.
-  \item Sanh et al.\ DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter. NeurIPS 2019 Workshop.
-\end{enumerate}
+\textbf{2a. Three types of stakeholder.} (1) Platform users and commenters, whose posts
+are removed or retained by the model. (2) Human moderators, who act on its outputs
+and absorb the cases it defers or gets wrong. (3) Members of the identity groups
+measured in our fairness probe, who bear the cost of over-flagging of neutral
+self-description.
 
-%----------------------------------------------------------------------
-\section{Ethics Statement (Required)}
+\textbf{2b. What an explanation to each would look like.} A user whose comment is
+actioned should receive a plain-language notice naming the category it was flagged
+under, an indication of confidence, the fact that an automated system made the
+initial decision, and an accessible route to human appeal - not a raw probability.
+A moderator needs the full per-label score vector and an explicit flag when the
+comment contains an identity term, since our results show that is precisely where
+false positives concentrate, plus the model's measured per-group error rates so they
+can calibrate how far to trust it. Affected identity groups need transparency at the
+population rather than the individual level: published per-group false-positive
+rates, the composition of the set on which they were measured, and a statement of
+what mitigation was attempted and what it cost.
 
-\textbf{6.1 Introduction.} Names: Tom Jacob, Omer Ramon. Project title: \emph{Words That Harm}. In this project we aim to compare SVM, decoder-only, and encoder-only architectures for toxic-comment classification. We check for accuracy, identity bias, and robustness.
+\textbf{2c. Who is responsible for each explanation.} The platform deploying the model owns the
+user-facing notice and the appeals process, because it makes the enforcement decision
+and holds the relationship with the user. The ML team owns moderator-facing
+documentation - model cards, per-group error rates, known failure modes - because
+only it can produce those numbers honestly. Public reporting is jointly owned: the ML
+team generates the audit, the platform is accountable for publishing it and acting on
+what it shows.
 
-\textbf{6.2 Stakeholders and explanations.}
-\begin{itemize}[nosep]
-  \item \emph{Stakeholders:} (1)~platform users/commenters, (2)~human moderators, (3)~identity groups at risk of over-flagging.
-  \item \emph{Explanations:} users need to know why a comment was flagged and how to appeal; moderators need per-label scores and confidence; identity groups need transparency about measured per-group false-positive rates.
-  \item \emph{Responsibility:} the platform deploying the model owns user- and group-facing explanations; the ML team owns moderator-facing documentation.
-\end{itemize}
-
-\textbf{6.3 Our reflection (write ourselves---no LLM).}
-
-\emph{[To be added by the team.]}
+\textbf{3a. Our reflection on the AI output.}
+\newline To begin with, we believe that the AI point-of-view is quite narrow to the problem itself, and there are many more stakeholders - these algorithms and identifying hate-speech can be used in many more places, not online forums, such as law-enforcers, researchers who want to track changes to minorities in some environment (real life and online), real-time tools for censorship and many more. Also, for each responsibility I would make sure to add a moderation, as long as I don't hurt the freedom-of-speech (which is even protected in the United States First Amendment). Also, to make it more ethical, we believe that the prompts to Claude response should be to think wider than the specific project problem, to tackle not what kind of stakeholder should behave and be aware, but how each side's rights clashes and how should the algorithm resolve these conflicts.
 
 \end{document}

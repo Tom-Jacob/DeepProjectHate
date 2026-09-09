@@ -1,0 +1,32 @@
+{
+  "config": {
+    "lr": 5e-05,
+    "weight_decay": 0.01,
+    "epochs": 2,
+    "batch_size": 4,
+    "warmup_ratio": 0.06,
+    "max_train_samples": 800,
+    "max_val_samples": 200,
+    "seed": 211,
+    "base_model": "distilgpt2",
+    "output_dir": "C:\\Users\\omerr\\OneDrive\\\u05e9\u05d5\u05dc\u05d7\u05df \u05d4\u05e2\u05d1\u05d5\u05d3\u05d4\\OMER\\\u05d0\u05e7\u05d3\u05de\u05d9\u05d4\\\u05ea\u05d5\u05d0\u05e8 \u05e9\u05e0\u05d9\\\u05d8\u05db\u05e0\u05d9\u05d5\u05df\\\u05dc\u05de\u05d9\u05d3\u05d4 \u05e2\u05de\u05d5\u05e7\u05d4 0460217\\\u05e4\u05e8\u05d5\u05d9\u05e7\u05d8\\DeepProjectHate\\models\\distilgpt2-d1-ft",
+    "max_prompt_tokens": 480
+  },
+  "base_model": "distilgpt2",
+  "best_val_answer_acc": 0.935,
+  "n_train": 800,
+  "n_val": 200,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.7056708546397931,
+      "val_answer_acc": 0.935
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.3727027582016626,
+      "val_answer_acc": 0.93
+    }
+  ],
+  "task": "binary_toxic_d1_yes_no"
+}

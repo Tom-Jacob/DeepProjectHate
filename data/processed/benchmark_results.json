@@ -1,0 +1,148 @@
+{
+  "model_id": "unitary/toxic-bert",
+  "seed": 211,
+  "quick_mode": true,
+  "quick_n_per_split": 500,
+  "threshold": 0.5,
+  "created_at": "2026-07-08T08:29:39.791836+00:00",
+  "splits": {
+    "val": {
+      "n": 500,
+      "threshold": 0.5,
+      "summary": {
+        "macro_f1": 0.5845427059712774,
+        "micro_f1": 0.8532110091743119,
+        "macro_precision": 0.5157271241830065,
+        "macro_recall": 0.7275862068965516,
+        "exact_match_ratio": 0.944,
+        "mean_label_accuracy": 0.9893333333333333,
+        "mean_pr_auc": 0.8105661863022314
+      },
+      "per_label": [
+        {
+          "label": "toxic",
+          "support_pos": 50,
+          "precision": 0.9375,
+          "recall": 0.9,
+          "f1": 0.9184,
+          "accuracy": 0.984,
+          "pr_auc": 0.9911
+        },
+        {
+          "label": "severe_toxic",
+          "support_pos": 2,
+          "precision": 0.3333,
+          "recall": 0.5,
+          "f1": 0.4,
+          "accuracy": 0.994,
+          "pr_auc": 0.75
+        },
+        {
+          "label": "obscene",
+          "support_pos": 29,
+          "precision": 0.8235,
+          "recall": 0.9655,
+          "f1": 0.8889,
+          "accuracy": 0.986,
+          "pr_auc": 0.9827
+        },
+        {
+          "label": "threat",
+          "support_pos": 1,
+          "precision": 0.3333,
+          "recall": 1.0,
+          "f1": 0.5,
+          "accuracy": 0.996,
+          "pr_auc": 1.0
+        },
+        {
+          "label": "insult",
+          "support_pos": 18,
+          "precision": 0.6667,
+          "recall": 1.0,
+          "f1": 0.8,
+          "accuracy": 0.982,
+          "pr_auc": 0.8896
+        },
+        {
+          "label": "identity_hate",
+          "support_pos": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "accuracy": 0.994,
+          "pr_auc": 0.25
+        }
+      ]
+    },
+    "test": {
+      "n": 500,
+      "threshold": 0.5,
+      "summary": {
+        "macro_f1": 0.5498438637973522,
+        "micro_f1": 0.7300613496932514,
+        "macro_precision": 0.5626221001221001,
+        "macro_recall": 0.6537524366471734,
+        "exact_match_ratio": 0.872,
+        "mean_label_accuracy": 0.9706666666666667,
+        "mean_pr_auc": 0.6554352786200044
+      },
+      "per_label": [
+        {
+          "label": "toxic",
+          "support_pos": 57,
+          "precision": 0.6264,
+          "recall": 1.0,
+          "f1": 0.7703,
+          "accuracy": 0.932,
+          "pr_auc": 0.8433
+        },
+        {
+          "label": "severe_toxic",
+          "support_pos": 3,
+          "precision": 1.0,
+          "recall": 0.3333,
+          "f1": 0.5,
+          "accuracy": 0.996,
+          "pr_auc": 0.6095
+        },
+        {
+          "label": "obscene",
+          "support_pos": 38,
+          "precision": 0.7083,
+          "recall": 0.8947,
+          "f1": 0.7907,
+          "accuracy": 0.964,
+          "pr_auc": 0.8304
+        },
+        {
+          "label": "threat",
+          "support_pos": 2,
+          "precision": 0.4,
+          "recall": 1.0,
+          "f1": 0.5714,
+          "accuracy": 0.994,
+          "pr_auc": 0.7
+        },
+        {
+          "label": "insult",
+          "support_pos": 36,
+          "precision": 0.641,
+          "recall": 0.6944,
+          "f1": 0.6667,
+          "accuracy": 0.95,
+          "pr_auc": 0.7828
+        },
+        {
+          "label": "identity_hate",
+          "support_pos": 2,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "accuracy": 0.988,
+          "pr_auc": 0.1667
+        }
+      ]
+    }
+  }
+}
