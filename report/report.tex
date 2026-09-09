@@ -462,12 +462,19 @@ better, for reasons \S\ref{sec:samecheckpoint} unpacks.
 \begin{subfigure}[t]{0.60\textwidth}
 \vspace{0pt}\centering
 \includegraphics[width=\textwidth]{figures/robustness_evasion_heatmap.png}
-\caption{Evasion rate per perturbation (higher $=$ more brittle).}
+\caption{Evasion rate per perturbation (higher $=$ more brittle). E1-p has no
+row: it detects none of the toxic comments at threshold $0.5$, so its evasion
+rate is $0/0$.}
 \label{fig:robust}
 \end{subfigure}
 \caption{The two diagnostic probes. Left: every cell is a false positive by
 construction, so any colour is unwanted. Right: measured on genuinely toxic
-test comments.}
+test comments, and therefore defined only for models that detect some of them -
+which is why \texttt{bert-base-mlm-prompt} is absent from it. That absence is
+the same calibration artefact as its $F1=0$ in Table~\ref{tab:headline}: it
+ranks comments well (ROC-AUC $0.722$) but almost never crosses the $0.5$
+threshold, so there is nothing for a perturbation to hide
+(\S\ref{sec:samecheckpoint}).}
 \label{fig:probes}
 \end{figure}
 
