@@ -1,4 +1,5 @@
 """Comparison plots for encoder vs decoder smoke / formal eval."""
+import copy
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -269,15 +270,51 @@ def plot_robustness_heatmap(
     """
     mat = robustness_matrix(results, value=value, probe=probe)
     fig, ax = plt.subplots(figsize=figsize)
+
+    # A model that detects nothing at the threshold has an undefined evasion
+    # rate (0/0 -> NaN). Left alone those cells render blank and read as a
+    # missing result, so mark them explicitly: grey fill, "n/a" annotation.
+    cmap = copy.copy(plt.get_cmap("Oranges"))
+    cmap.set_bad("#d9d9d9")
+
     sns.heatmap(
-        mat, annot=True, fmt=".2f", cmap="Oranges", vmin=0, vmax=1,
+        mat, annot=True, fmt=".2f", cmap=cmap, vmin=0, vmax=1,
         cbar_kws={"label": value}, ax=ax, linewidths=0.5, linecolor="white",
+        annot_kws={"fontsize": 8},
     )
+
+    # seaborn skips annotations on NaN cells, so write "n/a" into them by hand.
+    for xi, col in enumerate(mat.columns):
+        for yi, idx in enumerate(mat.index):
+            if pd.isna(mat.loc[idx, col]):
+                ax.text(
+                    xi + 0.5, yi + 0.5, "n/a",
+                    ha="center", va="center", fontsize=8,
+                    color="#6f6f6f", style="italic",
+                )
+
+    # Grey out the label of any fully-undefined model so the axis matches.
+    undefined = [c for c in mat.columns if mat[c].isna().all()]
+    for lbl in ax.get_xticklabels():
+        if lbl.get_text() in undefined:
+            lbl.set_color("#8c8c8c")
+            lbl.set_style("italic")
+
     title = "Evasion rate" if probe == "toxic_probe" else "FP-induction rate"
     ax.set_title(f"{title} under text perturbations (higher = more brittle)")
     ax.set_xlabel("")
     ax.set_ylabel("perturbation")
     fig.tight_layout()
+    if undefined:
+        # Placed on the figure (not the axes) and after tight_layout, so it sits
+        # below the rotated tick labels instead of colliding with them.
+        fig.subplots_adjust(bottom=0.42)
+        fig.text(
+            0.01, 0.02,
+            "n/a = undefined: this model detects nothing at threshold 0.5, "
+            "so the evasion denominator is zero",
+            fontsize=7.5, color="#5a5a5a",
+        )
     return fig, ax, mat
 
 
