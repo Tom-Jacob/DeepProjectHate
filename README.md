@@ -9,16 +9,17 @@ architecture makes, and why**. Eight model configurations are compared on the sa
 data, through the same interface, on the same hardware, then stress-tested for
 identity bias, robustness to obfuscation, and the mechanism behind their errors.
 
-- **Report:** [`report/report.tex`](report/report.tex) — the submission document.
-- **Narrative + all numbers:** [`report/report_draft.md`](report/report_draft.md).
-- **Presentation:** [`report/PRESENTATION_OUTLINE.md`](report/PRESENTATION_OUTLINE.md).
+> **Runs on CPU by default — no GPU required.** A GPU is optional; if one is
+> usable on your machine it's picked up automatically. See §5 for exactly what
+> that requires and why this particular dev machine still runs on CPU.
 
 ---
 
 ## 1. The models, and exactly where each one came from
 
-Every model is reduced to a single scalar `P(toxic)` (see §4), so all eight are
-directly comparable regardless of architecture.
+Every model is reduced to a single scalar **`P(toxic)`** — the probability, in
+`[0, 1]`, that a given comment is toxic (this is a binary classification problem) —
+so all eight are directly comparable regardless of architecture.
 
 | ID | Model | Where the weights come from | Who trained it | How to obtain it |
 |---|---|---|---|---|
@@ -160,10 +161,36 @@ Results land in `data/processed/*.json`; figures in `report/figures/`.
 ## 4. How the code is organized
 
 The whole comparison rests on one abstraction: **every model exposes
-`predict_toxic_proba(texts) -> P(toxic)`**. A BERT classifier reads a sigmoid, a
-masked-LM prompt softmaxes two vocabulary logits, a decoder compares yes/no
-log-probs, and the SVM applies Platt scaling — but every evaluation script sees the
-same interface, which is what makes an architecture-agnostic audit possible.
+`predict_toxic_proba(texts) -> P(toxic)`**, the same probability defined in §1. A
+BERT classifier reads a sigmoid, a masked-LM prompt softmaxes two vocabulary logits,
+a decoder compares yes/no log-probs, and the SVM applies Platt scaling — but every
+evaluation script sees the same interface, which is what makes an
+architecture-agnostic audit possible.
+
+```
+src/
+├── model_registry.py     ★ the hub — ModelSpec, load_scorer, per-family scorer classes
+├── roster.py                which models have local weights available
+├── encoder.py                 toxic-bert 6-label inference
+├── baselines.py                 TF-IDF + SVM baseline (the non-neural floor)
+├── decoder.py                     DistilGPT-2 prompting (D1 / D2)
+├── distill.py                       soft-KD distillation (E2 → S1)
+├── decoder_finetune.py                D1 answer-token fine-tune
+├── fairness.py                          368-sentence identity probe
+├── perturb.py                             the six obfuscations (leetspeak, typos, ...)
+├── intervention.py                          identity masking (inference + training time)
+├── evaluate.py                                metrics: per-label F1/PR-AUC, agreement
+├── plots.py                                     all figure generation
+├── device.py                                      CPU/GPU device selection (§5)
+└── data.py, splits.py, paths.py                     loading, splitting, constants
+
+scripts/     one CLI entry point per download / training run / experiment / plot
+notebooks/   exploration + Colab runs (01 EDA … 16 FPR fine-tuning)
+docs/        developer guide (full programmatic API) + distillation/fine-tune handoff notes
+report/      figures + slide deck
+data/        gitignored — raw Jigsaw CSVs + processed splits/results (download/split scripts)
+models/      gitignored — downloaded and self-trained weights (download/train scripts)
+```
 
 | Path | What it does |
 |---|---|
@@ -182,13 +209,15 @@ same interface, which is what makes an architecture-agnostic audit possible.
 | `src/data.py`, `src/splits.py`, `src/paths.py` | Loading, splitting, constants |
 | `scripts/` | One CLI entry point per download / training run / experiment / plot |
 | `notebooks/` | Exploration and Colab runs (01 EDA, 02 decoder smoke, 03–04 comparisons, 09–10 Colab training, 11–16 per-family audits) |
-
-See [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) for the programmatic API and
-a walk-through of each experiment.
+| `docs/DEVELOPER_GUIDE.md` | Code architecture and the programmatic API, with a walk-through of each experiment |
+| `docs/HANDOFF.md` | Distillation / decoder fine-tune handoff notes |
+| `report/figures/` | All generated figures |
+| `report/Academic_presentation_structure.pptx` | Slide deck |
+| `data/`, `models/` | Gitignored — created by the download/training scripts |
 
 ---
 
-## 5. Environment notes (read this before debugging)
+## 5. CPU vs. GPU, and other environment notes (read this before debugging)
 
 - **Conda env `deep_learn`** — Python 3.8, `torch 2.3.0+cu121`, transformers 4.46.3.
 - **The GPU does not work here, by design of the version pin.** The machine has an
@@ -207,59 +236,3 @@ a walk-through of each experiment.
   `sm_120` architecture, not to the `torch==2.3.0+cu121` pin itself — the same install
   uses the GPU normally on any `sm_90`-or-below card (which covers most Colab/cloud
   GPUs and the RTX 30/40-series).
-
----
-
-## 6. Troubleshooting / FAQ
-
-- **`download_jigsaw.py` doesn't find a Kaggle CLI / has no credentials.** That's
-  expected if you haven't set up `~/.kaggle/kaggle.json` — the script detects this and
-  falls back automatically to the `Heliosoph/Jigsaw-Toxic-Comments` Hugging Face
-  mirror, which needs no login, just internet access to huggingface.co. You'll see
-  `"Kaggle CLI not available — using Hugging Face mirror."` printed; that's not an
-  error.
-- **A script prints `[SKIP] <model>: missing models/...`.** This is the roster check
-  (`src/roster.py`) working as intended, not a bug — that model's local weights don't
-  exist in your checkout (they're gitignored). The message names the exact command to
-  run to produce them (a `download_*`/`train_*` script, or a Colab notebook for the
-  two models Tom trained on GPU: `distilbert-student`, `distilgpt2-d1-ft`). Run
-  `python -c "import sys; sys.path.insert(0,'src'); import roster; roster.print_roster_status()"`
-  any time to see the full picture at once.
-- **`ModuleNotFoundError` for something in `src/`.** Run scripts as
-  `python scripts/<name>.py` from the repo root (not `cd scripts && python <name>.py`).
-  Every script inserts `<repo_root>/src` onto `sys.path` itself at import time, but
-  that insertion is relative to the script's own location, so it only resolves
-  correctly when the file layout is intact — no manual `PYTHONPATH` setup needed.
-- **Garbled output or a crash the moment a script prints a path.** You forgot
-  `PYTHONIOENCODING=utf-8` — see the note in §2. This repo's own path contains
-  non-ASCII characters, which the default Windows console encoding (cp1252) can't
-  print.
-- **A run feels stuck / is taking far longer than expected.** See the runtime note in
-  §2 — the DistilGPT-2 decoders are the usual cause on CPU. Cut `--n`/`--eval-n`, pass
-  `--quick` where the script supports it, or move that piece of work to Colab (the
-  project already does this for the three GPU-heavy training runs; see `notebooks/09`,
-  `10`, `15`).
-
----
-
-## 7. Repository map
-
-| Path | Contents |
-|---|---|
-| `report/report.tex` | **The submission report.** |
-| `report/report_draft.md` | Working draft — every experiment, with full protocol and numbers |
-| `report/PRESENTATION_OUTLINE.md` | Slide-by-slide outline for the ≤6-minute video |
-| `report/figures/` | All generated figures |
-| `report/Words_That_Harm_Slides.pptx` | Slide deck |
-| `docs/DEVELOPER_GUIDE.md` | Code architecture and how to run everything |
-| `docs/HANDOFF.md` | Distillation / decoder fine-tune handoff notes |
-| `src/`, `scripts/`, `notebooks/` | See §4 |
-| `Project_Proposal.pdf` | The original approved proposal |
-| `data/`, `models/` | Gitignored — created by the download/training scripts |
-
-## 7. Work split
-
-- **Omer** — encoder side: toxic-bert, the `bert-base` classifier/prompt pair,
-  TF-IDF+SVM, the fairness probe, perturbations, the masking intervention.
-- **Tom** — decoder side: DistilGPT-2 prompting and fine-tune, knowledge
-  distillation, FPR-regularized fine-tuning, report and slides.
