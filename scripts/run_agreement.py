@@ -23,6 +23,7 @@ from evaluate import agreement_by_label  # noqa: E402
 from model_registry import ALL_SPECS, load_scorer  # noqa: E402
 from paths import PROCESSED_DIR, PROJECT_ROOT, SEED, TOXIC_LABELS  # noqa: E402
 from plots import plot_agreement_by_label, plot_gold_agreement_panel, save_figure  # noqa: E402
+from roster import model_ready  # noqa: E402
 from splits import sample_split_frame  # noqa: E402
 
 RESULTS_PATH = PROCESSED_DIR / "agreement_results.json"
@@ -34,6 +35,13 @@ def main() -> None:
     parser.add_argument("--n", type=int, default=150)
     parser.add_argument("--split", default="test", choices=["val", "test"])
     args = parser.parse_args()
+
+    ready, detail = model_ready("distilgpt2-d1-ft")
+    if not ready:
+        print(f"[SKIP] distilgpt2-d1-ft not available: {detail}")
+        print("This script needs Tom's fine-tuned decoder (Colab weights). "
+              "Nothing to score — exiting without writing results.")
+        return
 
     sample = sample_split_frame(args.split, n=args.n).drop_duplicates("comment_text").reset_index(drop=True)
     texts = sample["comment_text"].astype(str).tolist()

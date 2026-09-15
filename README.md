@@ -110,9 +110,21 @@ python scripts/plot_fairness_robustness.py            # regenerate figures
 Every script takes `--models` to restrict the roster (e.g.
 `--models toxic-bert tfidf-svm`), skips models whose weights are missing, and
 **merges** into the existing results JSON rather than overwriting it — so you can add
-one model without re-scoring the rest.
+one model without re-scoring the rest. (`run_agreement.py` is the one exception —
+it's a fixed encoder-vs-`distilgpt2-d1-ft` comparison, so it needs
+`models/distilgpt2-d1-ft/` specifically; it prints `[SKIP]` and exits cleanly if that
+Colab-only checkpoint isn't present, rather than crashing.)
 
 Results land in `data/processed/*.json`; figures in `report/figures/`.
+
+> **Runtime, roughly, on CPU:** `run_model_comparison.py` and
+> `run_bertbase_agreement.py` score at most a few thousand rows per model and finish in
+> minutes. `run_fairness.py` and `run_masking.py` run against the fixed 368-sentence
+> identity probe, so their cost barely depends on `--eval-n`. `run_robustness.py`
+> scores every sampled comment once per perturbation type, so it scales with `--n` ×
+> (number of perturbations) — start with a small `--n`. Whichever script includes a
+> DistilGPT-2 decoder is the slow one (~650 ms/comment on CPU, see §5); reduce its
+> `--n`/`--eval-n` first if a run is taking too long.
 
 ---
 
@@ -189,10 +201,48 @@ a walk-through of each experiment.
   why headline numbers use a seeded 800-comment test subset rather than all 63,978
   rows — every model is scored under identical conditions, which matters more for an
   audit than raw sample size.
+- **If you *do* have a working CUDA GPU**, nothing needs to change: `src/device.py`
+  probes CUDA with a real op and uses the GPU automatically whenever that probe
+  succeeds. The CPU fallback here is specific to this machine's unsupported
+  `sm_120` architecture, not to the `torch==2.3.0+cu121` pin itself — the same install
+  uses the GPU normally on any `sm_90`-or-below card (which covers most Colab/cloud
+  GPUs and the RTX 30/40-series).
 
 ---
 
-## 6. Repository map
+## 6. Troubleshooting / FAQ
+
+- **`download_jigsaw.py` doesn't find a Kaggle CLI / has no credentials.** That's
+  expected if you haven't set up `~/.kaggle/kaggle.json` — the script detects this and
+  falls back automatically to the `Heliosoph/Jigsaw-Toxic-Comments` Hugging Face
+  mirror, which needs no login, just internet access to huggingface.co. You'll see
+  `"Kaggle CLI not available — using Hugging Face mirror."` printed; that's not an
+  error.
+- **A script prints `[SKIP] <model>: missing models/...`.** This is the roster check
+  (`src/roster.py`) working as intended, not a bug — that model's local weights don't
+  exist in your checkout (they're gitignored). The message names the exact command to
+  run to produce them (a `download_*`/`train_*` script, or a Colab notebook for the
+  two models Tom trained on GPU: `distilbert-student`, `distilgpt2-d1-ft`). Run
+  `python -c "import sys; sys.path.insert(0,'src'); import roster; roster.print_roster_status()"`
+  any time to see the full picture at once.
+- **`ModuleNotFoundError` for something in `src/`.** Run scripts as
+  `python scripts/<name>.py` from the repo root (not `cd scripts && python <name>.py`).
+  Every script inserts `<repo_root>/src` onto `sys.path` itself at import time, but
+  that insertion is relative to the script's own location, so it only resolves
+  correctly when the file layout is intact — no manual `PYTHONPATH` setup needed.
+- **Garbled output or a crash the moment a script prints a path.** You forgot
+  `PYTHONIOENCODING=utf-8` — see the note in §2. This repo's own path contains
+  non-ASCII characters, which the default Windows console encoding (cp1252) can't
+  print.
+- **A run feels stuck / is taking far longer than expected.** See the runtime note in
+  §2 — the DistilGPT-2 decoders are the usual cause on CPU. Cut `--n`/`--eval-n`, pass
+  `--quick` where the script supports it, or move that piece of work to Colab (the
+  project already does this for the three GPU-heavy training runs; see `notebooks/09`,
+  `10`, `15`).
+
+---
+
+## 7. Repository map
 
 | Path | Contents |
 |---|---|
