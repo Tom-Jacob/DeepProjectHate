@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from baselines import TfidfSvmScorer  # noqa: E402
-from model_registry import MODEL_SPECS, load_scorer  # noqa: E402
+from model_registry import ALL_SPECS, MODEL_SPECS, load_scorer  # noqa: E402
 from paths import PROCESSED_DIR, SEED, TOXIC_LABELS  # noqa: E402
 from splits import get_split_frame, sample_split_frame, split_counts  # noqa: E402
 
@@ -81,13 +81,19 @@ def score_with_latency(scorer, texts, batch_size):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quick", action="store_true", help="Small train sample + 500 rows/split")
-    parser.add_argument("--models", nargs="+", default=list(MODEL_SPECS), help="Subset of model keys")
+    parser.add_argument("--models", nargs="+", default=list(MODEL_SPECS),
+                        help=f"Model keys. Choices: {list(ALL_SPECS)}")
     parser.add_argument("--target", choices=["toxic", "toxic_any"], default="toxic")
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--eval-n", type=int, default=None,
+                        help="Cap rows/split (overrides --quick); useful for the slow decoder")
     args = parser.parse_args()
 
-    eval_n = QUICK_EVAL_N if args.quick else None
+    if args.eval_n is not None:
+        eval_n = args.eval_n
+    else:
+        eval_n = QUICK_EVAL_N if args.quick else None
     print("Split sizes:")
     print(split_counts().to_string(index=False))
 
@@ -111,10 +117,10 @@ def main() -> None:
     }
 
     for key in args.models:
-        if key not in MODEL_SPECS:
+        if key not in ALL_SPECS:
             print(f"  ! unknown model key {key!r}, skipping")
             continue
-        spec = MODEL_SPECS[key]
+        spec = ALL_SPECS[key]
         print(f"\n=== {key} ({spec.model_id}) ===")
         scorer = load_scorer(spec)
 

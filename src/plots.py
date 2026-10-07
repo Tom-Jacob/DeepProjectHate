@@ -198,6 +198,108 @@ def plot_accuracy_latency(results: dict, split: str = "test", figsize=(7, 5)):
     return fig, ax, df
 
 
+def fairness_matrix(results: dict, value: str = "fpr") -> pd.DataFrame:
+    """Pivot fairness_results.json into a group x model matrix (grouped by category)."""
+    rows = []
+    for model, block in results["models"].items():
+        for rec in block["per_group"]:
+            rows.append(
+                {"model": model, "group": rec["group"], "category": rec["category"], value: rec[value]}
+            )
+    long = pd.DataFrame(rows)
+    order = (
+        long[["category", "group"]]
+        .drop_duplicates()
+        .sort_values(["category", "group"])["group"]
+        .tolist()
+    )
+    mat = long.pivot(index="group", columns="model", values=value).reindex(order)
+    return mat
+
+
+def plot_fairness_heatmap(results: dict, value: str = "fpr", figsize=(7, 9)):
+    """Heatmap of per-identity FPR (rows = identity groups, cols = models)."""
+    mat = fairness_matrix(results, value=value)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(
+        mat, annot=True, fmt=".2f", cmap="Reds", vmin=0, vmax=1,
+        cbar_kws={"label": value}, ax=ax, linewidths=0.5, linecolor="white",
+    )
+    ax.set_title("Per-identity false-positive rate (neutral sentences)")
+    ax.set_xlabel("")
+    ax.set_ylabel("identity group")
+    fig.tight_layout()
+    return fig, ax, mat
+
+
+def robustness_matrix(results: dict, value: str = "evasion_rate") -> pd.DataFrame:
+    """Pivot robustness_results.json into a perturbation x model matrix."""
+    rows = []
+    for model, block in results["models"].items():
+        for pname, m in block["perturbations"].items():
+            rows.append({"model": model, "perturbation": pname, value: m[value]})
+    long = pd.DataFrame(rows)
+    return long.pivot(index="perturbation", columns="model", values=value)
+
+
+def plot_robustness_heatmap(results: dict, value: str = "evasion_rate", figsize=(7, 5)):
+    """Heatmap of evasion rate (rows = perturbations, cols = models). Higher = more brittle."""
+    mat = robustness_matrix(results, value=value)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(
+        mat, annot=True, fmt=".2f", cmap="Oranges", vmin=0, vmax=1,
+        cbar_kws={"label": value}, ax=ax, linewidths=0.5, linecolor="white",
+    )
+    ax.set_title("Evasion rate under text perturbations (higher = more brittle)")
+    ax.set_xlabel("")
+    ax.set_ylabel("perturbation")
+    fig.tight_layout()
+    return fig, ax, mat
+
+
+def plot_masking_ablation(results: dict, figsize=(7, 5)):
+    """Inference-time masking: identity FPR with the term vs [MASK]ed, per model."""
+    rows = []
+    for model, r in results["inference_ablation"].items():
+        rows.append({"model": model, "condition": "with identity term", "fpr": r["fpr_with_identity"]})
+        rows.append({"model": model, "condition": "identity [MASK]ed", "fpr": r["fpr_masked"]})
+    df = pd.DataFrame(rows)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.barplot(data=df, x="model", y="fpr", hue="condition", ax=ax)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("identity false-positive rate")
+    ax.set_xlabel("")
+    ax.set_title("Masking the identity token collapses false positives\n(reliance on a lexical shortcut)")
+    ax.legend(title="")
+    fig.tight_layout()
+    return fig, ax
+
+
+def plot_masking_tradeoff(results: dict, figsize=(7, 5)):
+    """SVM training-time masking: fairness gain (FPR down) vs cost (recall down)."""
+    b = results["svm_training_masking"]
+    metrics = [
+        ("identity FPR", b["identity_fpr_before"], b["identity_fpr_after"]),
+        ("identity-hate recall", b["identity_hate_recall_before"], b["identity_hate_recall_after"]),
+        ("toxic recall", b["toxic_recall_before"], b["toxic_recall_after"]),
+    ]
+    rows = []
+    for name, before, after in metrics:
+        rows.append({"metric": name, "when": "before masking", "value": before})
+        rows.append({"metric": name, "when": "after masking", "value": after})
+    df = pd.DataFrame(rows)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.barplot(data=df, x="metric", y="value", hue="when", ax=ax)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("rate")
+    ax.set_xlabel("")
+    ax.set_title("SVM trained without identity terms:\nlower identity FPR, but recall on real identity-hate drops")
+    ax.legend(title="")
+    ax.tick_params(axis="x", rotation=15)
+    fig.tight_layout()
+    return fig, ax
+
+
 def save_figure(fig, path: Path, dpi: int = 120) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
