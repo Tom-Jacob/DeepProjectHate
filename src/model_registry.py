@@ -3,8 +3,8 @@
 Off-the-shelf toxicity models expose different heads and label schemes:
 
 - ``unitary/toxic-bert``            : 6-way multi-label (sigmoid), 'toxic' = index 0
-- ``martin-ha/toxic-comment-model`` : 2-way (softmax), 'toxic' = index 1
-- ``s-nlp/roberta_toxicity_classifier`` : 2-way (softmax), 'toxic' = index 1
+- ``martin-ha/toxic-comment-model`` : 2-way (softmax), 'toxic' = index 1  [legacy, unused]
+- ``s-nlp/roberta_toxicity_classifier`` : 2-way (softmax), 'toxic' = index 1  [legacy, unused]
 
 To compare them *fairly on the same task* we reduce every model to a single
 ``P(toxic)`` per comment via one common interface (``predict_toxic_proba``).
@@ -103,9 +103,10 @@ MODEL_SPECS = {
 # prompting -- isolating method from architecture family for the "dedicated
 # classifier vs. LM prompting" question (see BertBaseMlmPromptScorer below).
 
-# Off-the-shelf classifiers trained on OTHER data — excluded from the fair
-# comparison (not same-data). Kept addressable as fallbacks, e.g. if our own
-# distillation does not pan out and we need a distilled reference point.
+# LEGACY — not used in the report or by any experiment script's default roster.
+# Off-the-shelf classifiers trained on OTHER data, kept only as early-exploration
+# reference points; excluded from the fair comparison (not same-data). Still
+# addressable via --models for anyone who wants to probe them.
 FALLBACK_SPECS = {
     "distilbert-tox": ModelSpec(
         key="distilbert-tox",

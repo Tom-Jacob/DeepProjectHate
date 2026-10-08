@@ -28,3 +28,8 @@ Thumbs.db
 
 # Kaggle zip
 *.zip
+
+# Local AI-session notes (not part of the submission)
+CLAUDE.md
+STATUS.md
+.claude/

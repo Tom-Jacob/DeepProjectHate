@@ -11,11 +11,14 @@ from paths import (
     LOCAL_MODEL_DIR,
 )
 
-# Locked roster for fair tables (Q3 A).
+# The eight configurations compared in the report (Table 1).
 FAIR_ROSTER: List[str] = [
     "toxic-bert",
+    "bert-base-classifier",
+    "bert-base-mlm-prompt",
     "tfidf-svm",
     "distilgpt2-d1",
+    "distilgpt2-d2",
     "distilgpt2-d1-ft",
     "distilbert-student",
 ]
@@ -74,7 +77,7 @@ def model_ready(key: str) -> Tuple[bool, str]:
     if key == "bert-base-mlm-prompt":
         return True, "HF hub (bert-base-uncased) or cache, zero-shot (no training needed)"
 
-    if key == "distilbert-tox":
+    if key == "distilbert-tox":  # legacy fallback model, not part of the report
         return True, "HF hub (martin-ha/toxic-comment-model) or cache"
 
     if key == "distilgpt2-d2":

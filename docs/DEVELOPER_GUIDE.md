@@ -1,10 +1,8 @@
 # Developer guide — toxic-comment audit
 
 How the code is organized, the core abstraction, and how to run every experiment
-**both from the CLI and programmatically** (Python / notebook). For results and
-the narrative and all numbers see [`../report/report_draft.md`](../report/report_draft.md);
-for project context see
-[`../CLAUDE.md`](../CLAUDE.md).
+**both from the CLI and programmatically** (Python / notebook). For the results,
+the narrative and all numbers see the main [`../README.md`](../README.md).
 
 ---
 
@@ -21,11 +19,10 @@ Because they share this contract, the comparison, fairness, robustness, and
 masking code treat all architectures identically. Adding a model = adding one
 class + one `ModelSpec`; every experiment then works with it for free.
 
-There are **two evaluation levels**:
-- **Binary, cross-architecture** (this half): the shared `predict_toxic_proba`
-  harness — comparison / fairness / robustness / masking.
-- **Multi-label agreement** (Tom's `evaluate.py`, `join_scores.py`, notebook 04):
-  toxic-bert's 6 labels vs the decoder's 6 labels.
+All experiments are **binary and cross-architecture**: comparison / fairness /
+robustness / masking / same-checkpoint agreement all run on the shared
+`predict_toxic_proba` harness. The six Jigsaw labels are used only as
+distillation targets.
 
 ---
 
@@ -55,14 +52,15 @@ src/
   evaluate.py        multi-label metrics + agreement                   (Tom's)
   plots.py           all figure helpers + save_figure
 
-scripts/             CLI wrappers around the above, incl. train_distill.py,
-                     train_decoder_ft.py, train_fpr_finetune.py (see §5)
+scripts/             CLI wrappers around the above, incl. train_bert_base_classifier.py,
+                     train_distill.py, train_decoder_ft.py (see §5)
 ```
 
 `★` = the file to read first; everything routes through `load_scorer`. Registry
-keys `distilbert-student` (`kind=student`) and `distilgpt2-d1-ft` need Tom's
-Colab-trained weights in `models/distilbert-student/` / `models/distilgpt2-d1-ft/`
-— gitignored, not present unless you run the corresponding Colab notebook.
+keys `bert-base-classifier`, `distilbert-student` (`kind=student`) and
+`distilgpt2-d1-ft` need self-trained weights in `models/bert-base-toxic/`,
+`models/distilbert-student/` and `models/distilgpt2-d1-ft/` (gitignored). Create
+them with the training scripts (local scale) or Colab notebooks 09/10 (full scale).
 Check `roster.print_roster_status()` before scoring with them.
 
 ---
@@ -85,9 +83,9 @@ probs = scorer.predict_toxic_proba(["you are an idiot", "have a nice day"])
 | `bert-base-mlm-prompt` | `BertBaseMlmPromptScorer` | zero-shot: same `bert-base-uncased` checkpoint, no training, scores a masked-LM fill-blank prompt |
 | `tfidf-svm` | `TfidfSvmScorer` | must `.fit(texts, y)` before scoring |
 | `distilgpt2-d1` / `-d2` | `DecoderToxicScorer` | wraps `decoder.py`; truncates to 512 tok |
-| `distilgpt2-d1-ft` | `DecoderToxicScorer` | D1 fine-tuned on the answer tokens; needs `models/distilgpt2-d1-ft/` (Colab) |
-| `distilbert-student` | `DistilBertStudentScorer` (`distill.py`) | soft-KD from toxic-bert; needs `models/distilbert-student/` (Colab) |
-| `distilbert-tox`, `roberta-tox` | `HFSeqClassScorer` | fallback only (`FALLBACK_SPECS`) |
+| `distilgpt2-d1-ft` | `DecoderToxicScorer` | D1 fine-tuned on the answer tokens; needs `models/distilgpt2-d1-ft/` (`train_decoder_ft.py` or notebook 10) |
+| `distilbert-student` | `DistilBertStudentScorer` (`distill.py`) | soft-KD from toxic-bert; needs `models/distilbert-student/` (`train_distill.py` or notebook 09) |
+| `distilbert-tox`, `roberta-tox` | `HFSeqClassScorer` | **legacy, unused** — off-the-shelf models from early exploration (`FALLBACK_SPECS`); not in the report |
 
 The non-neural baseline needs training first:
 
@@ -142,7 +140,7 @@ print(apply_perturbation("leetspeak", toxic))   # y0u @r3 @ d1$gu$71ng 1d10t
 from intervention import inference_ablation, mask_terms
 print(mask_terms("I am gay"))                    # "I am [MASK]"
 inference_ablation(load_scorer(ALL_SPECS["toxic-bert"]), build_identity_probe_df())
-# -> {'fpr_with_identity': 0.15, 'fpr_masked': 0.0, ...}
+# -> {'fpr_with_identity': 0.087, 'fpr_masked': 0.0, ...}
 ```
 
 **Same checkpoint, two methods (classifier vs. zero-shot prompting):**
@@ -154,14 +152,6 @@ prompt = load_scorer(ALL_SPECS["bert-base-mlm-prompt"])    # zero-shot fill-mask
 texts = ["you are a disgusting idiot", "have a nice day"]
 print(clf.predict_toxic_proba(texts), prompt.predict_toxic_proba(texts))
 # see scripts/run_bertbase_agreement.py for the full pairwise-agreement analysis
-```
-
-**Encoder vs decoder agreement (multi-label, Tom's layer):**
-```python
-from encoder import load_toxic_bert
-from decoder import predict_multilabel_d1
-from evaluate import agreement_by_label
-# see scripts/run_agreement.py for the full join + truncation
 ```
 
 **Plot + save any figure:**
@@ -182,7 +172,7 @@ python scripts\run_model_comparison.py --quick                     # or --eval-n
 python scripts\run_fairness.py
 python scripts\run_robustness.py --quick
 python scripts\run_masking.py
-python scripts\run_agreement.py --n 150
+python scripts\run_bertbase_agreement.py
 python scripts\plot_model_comparison.py --split test
 python scripts\plot_fairness_robustness.py
 ```
@@ -217,6 +207,7 @@ and a branch in `load_scorer`.
 - **Decoder is slow + context-limited.** DistilGPT-2 has a 1024-token context;
   `DecoderToxicScorer` truncates comments to 512 tokens. Keep decoder sample
   sizes small (`--eval-n`, `--n`).
-- **Results JSON is gitignored** (`data/processed/`). Figures in `report/figures/`
-  are committed. Re-run the script to regenerate a JSON.
+- **Result JSONs are committed** (`data/processed/*.json`); the split parquet and
+  raw CSVs are gitignored. Figures in `report/figures/` are committed. Re-run a
+  script to regenerate its JSON (scripts merge into the existing file).
 - **Don't `2>$null` decoder runs** — it hides tracebacks; filter stderr instead.

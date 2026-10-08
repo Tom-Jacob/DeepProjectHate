@@ -14,6 +14,12 @@ evaluates on a val subsample after each epoch.
 Usage:
     python scripts/train_bert_base_classifier.py
     python scripts/train_bert_base_classifier.py --train-n 12000 --epochs 2
+
+Exact command for the checkpoint used in the report (E1). That run was
+interrupted in epoch 2; the checkpoint is the mid-epoch save at step 400 of
+epoch 2, i.e. 750 + 400 = 1150 optimizer steps. --stop-at-step reproduces it:
+    python scripts/train_bert_base_classifier.py --train-n 12000 --val-n 2000 \
+        --epochs 2 --batch-size 16 --save-every 200 --fresh --stop-at-step 1150
 """
 import argparse
 import json
@@ -83,6 +89,9 @@ def main() -> None:
                         help="Checkpoint every N steps (in addition to end-of-epoch), 0 to disable")
     parser.add_argument("--fresh", action="store_true",
                         help="Ignore any existing checkpoint in models/bert-base-toxic and start from bert-base-uncased")
+    parser.add_argument("--stop-at-step", type=int, default=0,
+                        help="Save and stop after this many optimizer steps in total (counted across "
+                             "epochs from a fresh start); 0 = train all epochs. 1150 reproduces the report's E1")
     args = parser.parse_args()
 
     device = get_device()
@@ -166,6 +175,16 @@ def main() -> None:
                 model.save_pretrained(LOCAL_BERT_BASE_DIR)
                 tokenizer.save_pretrained(LOCAL_BERT_BASE_DIR)
                 print(f"  mid-epoch checkpoint saved (step {step})", flush=True)
+
+            # Optional early stop at a fixed global step (reproduces the report's
+            # interrupted E1 run). train_state.json keeps the last *completed* epoch.
+            global_step = (epoch - 1) * steps_per_epoch + step
+            if args.stop_at_step and global_step >= args.stop_at_step:
+                LOCAL_BERT_BASE_DIR.mkdir(parents=True, exist_ok=True)
+                model.save_pretrained(LOCAL_BERT_BASE_DIR)
+                tokenizer.save_pretrained(LOCAL_BERT_BASE_DIR)
+                print(f"Stopped at global step {global_step}; checkpoint saved to {LOCAL_BERT_BASE_DIR}")
+                return
 
         val_f1, val_pr_auc = evaluate(model, tokenizer, val_texts, val_labels, device)
         print(

@@ -61,5 +61,5 @@ BENCHMARK_RESULTS_PATH = PROCESSED_DIR / "benchmark_results.json"
 TRAIN_FRAC = 0.85
 VAL_FRAC = 0.15
 
-# Cap per split when --quick is passed to run_formal_eval.py
+# Legacy (the formal-eval script it served was removed); kept so old imports don't break.
 FORMAL_EVAL_QUICK_N = 500
