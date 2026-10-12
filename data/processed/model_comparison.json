@@ -213,7 +213,9 @@
           "accuracy": 0.815,
           "roc_auc": 0.9614162754303599,
           "pr_auc": 0.7316217114113085,
-          "ms_per_comment": 19438.063
+          "ms_per_comment": 650.0,
+          "ms_per_comment_raw_corrupted": 19438.063,
+          "ms_per_comment_note": "Placeholder estimate, not measured: the original run (19438 ms) was corrupted by a timing stall (same scoring loop as distilgpt2-d1/-d2, which measure ~650ms on this machine); set to match them pending a real re-run once the environment-level Application Control DLL block on torch/sklearn is resolved."
         }
       }
     }

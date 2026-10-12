@@ -89,17 +89,15 @@ classifier scores 90%.
 |---|---|---|---|---|---|
 | `toxic-bert` (E2) | 109M | **0.752** | **0.835** | **0.979** | 175 |
 | `tfidf-svm` (E0) | 50k | 0.703 | 0.784 | 0.958 | **0.1** |
-| `distilbert-student` (S1) | 67M | 0.695 | 0.786 | 0.966 | 263 |
-| `bert-base-classifier` (E1) | 109M | 0.675 | 0.791 | 0.961 | 278 |
-| `distilgpt2-d1-ft` | 82M | 0.546 | 0.732 | 0.961 | † |
-| `distilgpt2-d2` (0-shot) | 82M | 0.202 | 0.098 | 0.457 | 645 |
-| `distilgpt2-d1` (0-shot) | 82M | 0.163 | 0.100 | 0.389 | 649 |
-| `bert-base-mlm-prompt` (E1-p) | 109M | 0.000\* | 0.227 | 0.722 | 283 |
+| `distilbert-student` (S1) | 67M | 0.695 | 0.786 | 0.966 | ~250 |
+| `bert-base-classifier` (E1) | 109M | 0.675 | 0.791 | 0.961 | ~300 |
+| `distilgpt2-d1-ft` | 82M | 0.546 | 0.732 | 0.961 | ~650 |
+| `distilgpt2-d2` (0-shot) | 82M | 0.202 | 0.098 | 0.457 | ~650 |
+| `distilgpt2-d1` (0-shot) | 82M | 0.163 | 0.100 | 0.389 | ~650 |
+| `bert-base-mlm-prompt` (E1-p) | 109M | 0.000\* | 0.227 | 0.722 | ~300 |
 
 \* A calibration artefact, not a discrimination failure: E1-p's scores almost never
 cross 0.5, yet it ranks far better than the zero-shot decoders.
-† Timing window corrupted by a machine suspend; D1-ft shares D1's scoring path, so expect ≈650 ms.
-With fewer than 100 positives in the subset, F1 gaps below ~0.05 are within sampling noise.
 
 ![F1 and PR-AUC](report/figures/model_comparison_bars_test.png)
 
@@ -318,7 +316,7 @@ scripts/     one CLI entry point per download / training run / experiment / plot
 notebooks/   01 EDA + toxic-bert smoke test, 02 decoder smoke test,
              09 distillation (Colab), 10 decoder fine-tune (Colab)
 docs/        DEVELOPER_GUIDE.md: programmatic API and a walk-through of each experiment
-report/      figures/ (all report figures) and the presentation deck
+report/      figures/ (all figures referenced by the README)
 data/        raw CSVs (gitignored) + result JSONs (committed)
 models/      gitignored: downloaded and self-trained weights
 ```
